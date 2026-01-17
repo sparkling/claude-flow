@@ -162,11 +162,8 @@ export { embeddingsCommand } from './embeddings.js';
 export { neuralCommand } from './neural.js';
 export { performanceCommand } from './performance.js';
 export { securityCommand } from './security.js';
-<<<<<<< HEAD
 export { ruvectorCommand } from './ruvector/index.js';
-=======
 export { hiveMindCommand } from './hive-mind.js';
->>>>>>> main
 
 // Lazy-loaded command re-exports (for backwards compatibility, but async-only)
 export async function getConfigCommand() { return loadCommand('config'); }
