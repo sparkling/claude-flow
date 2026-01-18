@@ -54,11 +54,19 @@ export class CacheOptimizer {
   private driftEvents: number = 0;
   private driftCorrections: number = 0;
 
-  constructor(config: Partial<CacheOptimizerConfig> = {}) {
+  constructor(config: Partial<CacheOptimizerConfig> = {}, options?: { useHyperbolic?: boolean }) {
     this.config = this.mergeConfig(config);
     this.tokenCounter = new TokenCounter(this.config.contextWindowSize);
     this.temporalCompressor = new TemporalCompressor(this.config.temporal);
     this.flashAttention = new FlashAttention(this.config.intelligence.attention.flash);
+    this.hyperbolicIntelligence = new HyperbolicCacheIntelligence({
+      dims: 64,
+      curvature: -1,
+      driftThreshold: 0.5,
+      enableHypergraph: true,
+      enableDriftDetection: true,
+    });
+    this.useHyperbolic = options?.useHyperbolic ?? true;
   }
 
   /**
