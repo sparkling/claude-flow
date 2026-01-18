@@ -73,7 +73,27 @@ export {
   createHookConfig,
   getGlobalOptimizer,
   resetGlobalOptimizer,
+  // Handoff hooks
+  handleHandoffRequest,
+  handleHandoffPoll,
+  handleHandoffCancel,
+  getHandoffMetrics,
+  handleHandoffHealthCheck,
+  createHandoffWorkflow,
+  getGlobalHandoffManager,
+  resetGlobalHandoffManager,
 } from './hooks/handlers.js';
+
+// =============================================================================
+// Handoff - Background process model invocation
+// =============================================================================
+export {
+  HandoffManager,
+  handoff,
+  BackgroundHandler,
+  createHandoffChain,
+  DEFAULT_HANDOFF_CONFIG,
+} from './handoff/index.js';
 
 // =============================================================================
 // Benchmarks - Performance measurement
