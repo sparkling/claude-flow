@@ -90,7 +90,7 @@ const fsShimPath = path.join(__dirname, '..', 'dist', 'fs-shim.js');
 const child = spawn('node', [tempScript], {
   env: {
     ...process.env,
-    NODE_OPTIONS: `--require ${interceptorPath}`,
+    NODE_OPTIONS: `--require ${fsShimPath}`,
     CACHE_OPTIMIZE: 'true',
     CACHE_TARGET_SIZE: '500000',
     CACHE_INTERCEPTOR_DEBUG: 'true'
