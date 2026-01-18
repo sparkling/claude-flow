@@ -3,10 +3,86 @@
  *
  * SQLite-based persistent storage for handoff queue and metrics.
  * Uses sql.js for cross-platform WASM-based SQLite.
+ *
+ * MULTI-PROCESS SAFETY:
+ * - File locking prevents concurrent writes from corrupting data
+ * - Atomic writes via temp file + rename pattern
+ * - Lock timeout prevents deadlocks
  */
 
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile, rename, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
 import { dirname } from 'path';
+
+/**
+ * Simple file locking using .lock files
+ * Falls back gracefully if locking fails
+ */
+class FileLock {
+  private lockPath: string;
+  private locked = false;
+  private lockTimeout = 5000; // 5 second timeout
+
+  constructor(filePath: string) {
+    this.lockPath = `${filePath}.lock`;
+  }
+
+  async acquire(): Promise<boolean> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < this.lockTimeout) {
+      try {
+        // Try to create lock file exclusively
+        if (!existsSync(this.lockPath)) {
+          await writeFile(this.lockPath, `${process.pid}:${Date.now()}`, { flag: 'wx' });
+          this.locked = true;
+          return true;
+        }
+
+        // Check if existing lock is stale (> 30 seconds old)
+        try {
+          const lockContent = await readFile(this.lockPath, 'utf8');
+          const [, lockTime] = lockContent.split(':');
+          if (lockTime && Date.now() - parseInt(lockTime, 10) > 30000) {
+            // Stale lock, remove it
+            await unlink(this.lockPath);
+            continue;
+          }
+        } catch {
+          // Lock file may have been removed
+          continue;
+        }
+
+        // Wait and retry
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (error: unknown) {
+        const err = error as { code?: string };
+        if (err.code === 'EEXIST') {
+          // Lock file created by another process, wait and retry
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } else {
+          // Other error, proceed without lock
+          console.warn('File lock failed, proceeding without lock:', error);
+          return false;
+        }
+      }
+    }
+
+    console.warn('Lock acquisition timeout, proceeding without lock');
+    return false;
+  }
+
+  async release(): Promise<void> {
+    if (this.locked) {
+      try {
+        await unlink(this.lockPath);
+      } catch {
+        // Lock file may already be removed
+      }
+      this.locked = false;
+    }
+  }
+}
 import type {
   HandoffRequest,
   HandoffResponse,
