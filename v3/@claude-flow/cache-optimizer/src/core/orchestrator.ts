@@ -778,6 +778,119 @@ export class CacheOptimizer {
 
     return [...new Set(tools)];
   }
+
+  // ========== Hyperbolic Intelligence Methods ==========
+
+  /**
+   * Get drift analysis for current cache state
+   */
+  analyzeDrift(): {
+    isDrifting: boolean;
+    driftMagnitude: number;
+    recommendation: string;
+    driftEvents: number;
+    driftCorrections: number;
+  } {
+    if (!this.useHyperbolic) {
+      return {
+        isDrifting: false,
+        driftMagnitude: 0,
+        recommendation: 'Hyperbolic intelligence disabled',
+        driftEvents: 0,
+        driftCorrections: 0,
+      };
+    }
+
+    const entries = Array.from(this.entries.values());
+    const analysis = this.hyperbolicIntelligence.analyzeDrift(entries);
+
+    return {
+      ...analysis,
+      driftEvents: this.driftEvents,
+      driftCorrections: this.driftCorrections,
+    };
+  }
+
+  /**
+   * Get hyperbolic intelligence statistics
+   */
+  getHyperbolicStats(): {
+    enabled: boolean;
+    embeddedEntries: number;
+    hypergraph: { vertices: number; edges: number; avgDegree: number };
+    historicalPatterns: number;
+    driftEvents: number;
+    driftCorrections: number;
+  } {
+    if (!this.useHyperbolic) {
+      return {
+        enabled: false,
+        embeddedEntries: 0,
+        hypergraph: { vertices: 0, edges: 0, avgDegree: 0 },
+        historicalPatterns: 0,
+        driftEvents: 0,
+        driftCorrections: 0,
+      };
+    }
+
+    const stats = this.hyperbolicIntelligence.getStats();
+    return {
+      enabled: true,
+      ...stats,
+      driftEvents: this.driftEvents,
+      driftCorrections: this.driftCorrections,
+    };
+  }
+
+  /**
+   * Record successful cache configuration for future learning
+   */
+  recordSuccessfulState(metrics: {
+    hitRate: number;
+    compressionRatio: number;
+    evictionAccuracy: number;
+  }): string | null {
+    if (!this.useHyperbolic) return null;
+
+    const entries = Array.from(this.entries.values());
+    return this.hyperbolicIntelligence.recordSuccess(entries, metrics);
+  }
+
+  /**
+   * Export hyperbolic state for persistence
+   */
+  exportHyperbolicState(): {
+    embeddings: Array<[string, number[]]>;
+    patterns: unknown[];
+  } | null {
+    if (!this.useHyperbolic) return null;
+    return this.hyperbolicIntelligence.exportState();
+  }
+
+  /**
+   * Import hyperbolic state from persistence
+   */
+  importHyperbolicState(state: {
+    embeddings: Array<[string, number[]]>;
+    patterns: unknown[];
+  }): void {
+    if (!this.useHyperbolic) return;
+    this.hyperbolicIntelligence.importState(state as ReturnType<typeof this.hyperbolicIntelligence.exportState>);
+  }
+
+  /**
+   * Toggle hyperbolic intelligence
+   */
+  setHyperbolicEnabled(enabled: boolean): void {
+    this.useHyperbolic = enabled;
+  }
+
+  /**
+   * Check if hyperbolic intelligence is enabled
+   */
+  isHyperbolicEnabled(): boolean {
+    return this.useHyperbolic;
+  }
 }
 
 /**
