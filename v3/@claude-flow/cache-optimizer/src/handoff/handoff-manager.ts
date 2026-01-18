@@ -8,8 +8,122 @@
 
 import { spawn, type ChildProcess } from 'child_process';
 import { randomUUID } from 'crypto';
-import { mkdir, writeFile, unlink } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, writeFile, unlink, readFile } from 'fs/promises';
+import { join, resolve, basename } from 'path';
+
+// =============================================================================
+// Security Utilities
+// =============================================================================
+
+/**
+ * Validate URL to prevent SSRF attacks
+ * Blocks internal IPs, cloud metadata endpoints, and localhost
+ */
+function validateEndpointUrl(url: string, allowLocal: boolean = false): { valid: boolean; error?: string } {
+  try {
+    const parsed = new URL(url);
+
+    // Only allow http/https protocols
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { valid: false, error: `Invalid protocol: ${parsed.protocol}. Only http/https allowed.` };
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Block cloud metadata endpoints (AWS, GCP, Azure)
+    const blockedHosts = [
+      '169.254.169.254',  // AWS/GCP metadata
+      'metadata.google.internal',
+      'metadata.google.com',
+      '100.100.100.200',  // Alibaba metadata
+      'fd00:ec2::254',    // AWS IPv6 metadata
+    ];
+
+    if (blockedHosts.includes(hostname)) {
+      return { valid: false, error: 'Cloud metadata endpoints are blocked for security.' };
+    }
+
+    // Block internal networks unless explicitly allowed
+    if (!allowLocal) {
+      // Block localhost variants
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+        return { valid: false, error: 'Localhost is not allowed for remote endpoints.' };
+      }
+
+      // Block private IP ranges
+      const privateRanges = [
+        /^10\./,              // 10.0.0.0/8
+        /^172\.(1[6-9]|2[0-9]|3[01])\./,  // 172.16.0.0/12
+        /^192\.168\./,        // 192.168.0.0/16
+        /^fc00:/i,            // IPv6 unique local
+        /^fd00:/i,
+      ];
+
+      for (const range of privateRanges) {
+        if (range.test(hostname)) {
+          return { valid: false, error: 'Private network addresses are not allowed.' };
+        }
+      }
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'Invalid URL format.' };
+  }
+}
+
+/**
+ * Validate request ID to prevent path traversal
+ */
+function validateRequestId(id: string): { valid: boolean; sanitized: string; error?: string } {
+  // Only allow alphanumeric, hyphens, and underscores
+  const sanitized = id.replace(/[^a-zA-Z0-9\-_]/g, '');
+
+  if (sanitized !== id) {
+    return { valid: false, sanitized, error: 'Request ID contains invalid characters.' };
+  }
+
+  if (sanitized.length < 1 || sanitized.length > 128) {
+    return { valid: false, sanitized, error: 'Request ID must be 1-128 characters.' };
+  }
+
+  return { valid: true, sanitized };
+}
+
+/**
+ * Validate header name to prevent header injection
+ */
+function validateHeaderName(name: string): boolean {
+  // RFC 7230 token format
+  return /^[a-zA-Z0-9\-_]+$/.test(name);
+}
+
+/**
+ * Validate header value to prevent injection
+ */
+function validateHeaderValue(value: string): boolean {
+  // No CRLF or null bytes
+  return !/[\r\n\0]/.test(value);
+}
+
+/**
+ * Sanitize work directory path
+ */
+function sanitizeWorkDir(workDir: string): string {
+  // Resolve to absolute path and normalize
+  const resolved = resolve(workDir);
+
+  // Ensure it's under a safe base (tmp or data directories)
+  const safeRoots = ['/tmp', '/var/tmp', process.cwd()];
+  const isSafe = safeRoots.some(root => resolved.startsWith(resolve(root)));
+
+  if (!isSafe) {
+    // Default to tmp if path is suspicious
+    return '/tmp/claude-flow-handoff';
+  }
+
+  return resolved;
+}
 import type {
   HandoffConfig,
   HandoffProviderConfig,
