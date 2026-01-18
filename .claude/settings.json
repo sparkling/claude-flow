@@ -213,6 +213,11 @@
             "type": "command",
             "timeout": 3000,
             "command": "node /workspaces/claude-flow/v3/@claude-flow/cli/bin/cli.js hooks post-command --command \"$TOOL_INPUT_command\" --exit-code 0 --success true 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "/workspaces/claude-flow/.claude/helpers/cache-optimizer-hooks.sh record add \"cmd-$(date +%s)\" command_exec '{}' 2>/dev/null || true"
           }
         ]
       },
