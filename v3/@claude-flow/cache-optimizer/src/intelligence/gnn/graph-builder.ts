@@ -6,7 +6,7 @@
  */
 
 import type { CacheEntry } from '../../types.js';
-import type { CacheNode, CacheEdge, EdgeType, CacheGraph } from './cache-gnn.js';
+import type { CacheNode, CacheEdge, CacheGraph } from './cache-gnn.js';
 import { extractNodeFeatures } from './cache-gnn.js';
 
 // ============================================================================
