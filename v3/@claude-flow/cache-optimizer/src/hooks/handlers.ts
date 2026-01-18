@@ -300,8 +300,7 @@ export function resetGlobalOptimizer(): void {
 // HANDOFF HOOK HANDLERS
 // =============================================================================
 
-import { HandoffManager, type HandoffRequest, type HandoffResponse } from '../handoff/index.js';
-import { BackgroundHandler, createHandoffChain } from '../handoff/background-handler.js';
+import { HandoffManager, type HandoffResponse } from '../handoff/index.js';
 import type { HandoffConfig } from '../types.js';
 
 /**
