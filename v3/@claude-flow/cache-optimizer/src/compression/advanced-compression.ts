@@ -263,7 +263,7 @@ export class QuantizedCompression implements CompressionStrategy {
     };
   }
 
-  estimateRatio(content: string): number {
+  estimateRatio(_content: string): number {
     // Int8: ~70-85% of original, Int4: ~50-70%
     return this.bitLevel === 8 ? 0.75 : 0.55;
   }
