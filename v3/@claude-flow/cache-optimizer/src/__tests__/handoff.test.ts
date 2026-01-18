@@ -414,9 +414,11 @@ describe('RateLimiterRegistry', () => {
 
 describe('PersistentStore', () => {
   let store: PersistentStore;
-  const testDbPath = '/tmp/test-handoff-' + Date.now() + '.db';
+  let testDbPath: string;
 
   beforeEach(async () => {
+    // Generate unique path per test to ensure isolation
+    testDbPath = `/tmp/test-handoff-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
     store = new PersistentStore({
       dbPath: testDbPath,
       autoSaveInterval: 100,
@@ -427,6 +429,7 @@ describe('PersistentStore', () => {
   });
 
   afterEach(async () => {
+    await store.clear(); // Clear data before closing
     await store.close();
   });
 
