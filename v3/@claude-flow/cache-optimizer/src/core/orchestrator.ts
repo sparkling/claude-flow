@@ -2,6 +2,11 @@
  * @claude-flow/cache-optimizer - Cache Orchestrator
  * Main CacheOptimizer class that coordinates all optimization operations
  * Based on ADR-030: Intelligent Cache Optimization System (ICOS)
+ *
+ * MULTI-INSTANCE SAFETY:
+ * - Session-partitioned storage isolates data between agents/sessions
+ * - Async mutex prevents race conditions on concurrent operations
+ * - Per-session token accounting enables fair resource allocation
  */
 
 import type {
@@ -25,6 +30,48 @@ import { TokenCounter } from './token-counter.js';
 import { TemporalCompressor } from '../temporal/compression.js';
 import { FlashAttention } from '../intelligence/attention/flash-attention.js';
 import { HyperbolicCacheIntelligence } from '../intelligence/hyperbolic-cache.js';
+
+/**
+ * Simple async mutex for concurrent access protection
+ * Prevents race conditions when multiple agents access the same optimizer
+ */
+class AsyncMutex {
+  private locked = false;
+  private waitQueue: Array<() => void> = [];
+
+  async acquire(): Promise<() => void> {
+    if (!this.locked) {
+      this.locked = true;
+      return () => this.release();
+    }
+
+    return new Promise((resolve) => {
+      this.waitQueue.push(() => {
+        this.locked = true;
+        resolve(() => this.release());
+      });
+    });
+  }
+
+  private release(): void {
+    const next = this.waitQueue.shift();
+    if (next) {
+      next();
+    } else {
+      this.locked = false;
+    }
+  }
+}
+
+/**
+ * Session-isolated storage for multi-agent safety
+ */
+interface SessionStorage {
+  entries: Map<string, CacheEntry>;
+  accessOrder: string[];
+  tokenCounter: TokenCounter;
+  lastAccess: number;
+}
 
 /**
  * Generate unique ID
