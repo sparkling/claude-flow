@@ -213,8 +213,8 @@ describe('CircuitBreakerRegistry', () => {
     registry.get('provider-2').recordFailure();
 
     const stats = registry.getAllStats();
-    expect(stats['provider-1'].totalSuccesses).toBe(1);
-    expect(stats['provider-2'].totalFailures).toBe(1);
+    expect(stats['provider-1'].totalRequests).toBe(1);
+    expect(stats['provider-2'].failures).toBe(1);
   });
 });
 
