@@ -372,6 +372,16 @@
             "type": "command",
             "timeout": 5000,
             "command": "node /workspaces/claude-flow/v3/@claude-flow/cli/bin/cli.js hooks metrics --format json --output /workspaces/claude-flow/.claude-flow/v3-session-metrics.json 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 4000,
+            "command": "/workspaces/claude-flow/.claude/helpers/cache-optimizer-hooks.sh train-grnn 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 3000,
+            "command": "/workspaces/claude-flow/.claude/helpers/cache-optimizer-hooks.sh report json > /workspaces/claude-flow/.claude-flow/gnn-session-report.json 2>/dev/null || true"
           }
         ]
       }
