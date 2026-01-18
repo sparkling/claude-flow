@@ -128,7 +128,7 @@ export class BenchmarkSuite {
   /**
    * Record hook execution latency
    */
-  recordHook(hookName: string, latencyMs: number): void {
+  recordHook(_hookName: string, latencyMs: number): void {
     if (this.shouldSample()) {
       this.hookLatency.record(latencyMs);
     }
