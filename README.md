@@ -3194,6 +3194,7 @@ await hooks.endTrajectory(trajectory, { success: true });
 | `@claude-flow/neural` | SONA learning | `SONAAdapter`, `MoERouter` |
 | `@claude-flow/providers` | LLM providers | `ProviderRegistry`, `createProvider` |
 | `@claude-flow/plugins` | Plugin SDK | `PluginBuilder`, `createPlugin` |
+| `@claude-flow/cache-optimizer` | Zero-compaction context | `createCacheOptimizer`, `handoff` |
 
 </details>
 
