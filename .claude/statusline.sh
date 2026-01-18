@@ -204,6 +204,44 @@ if [ "$CLAUDE_INPUT" != "{}" ]; then
   fi
 fi
 
+# =============================================================================
+# GNN/GRNN Cache Optimizer Status
+# =============================================================================
+GNN_NODES=0
+GNN_TOPOLOGY="--"
+GRNN_EWC=0
+CACHE_STATUS="○"
+CACHE_COLOR="${DIM}"
+
+GNN_STATE="${PROJECT_DIR}/.claude-flow/gnn/state.json"
+if [ -f "$GNN_STATE" ]; then
+  GNN_NODES=$(jq -r '.graphNodes // 0' "$GNN_STATE" 2>/dev/null || echo "0")
+  GNN_TOPOLOGY=$(jq -r '.lastTopology // "hybrid"' "$GNN_STATE" 2>/dev/null || echo "hybrid")
+  GRNN_EWC=$(jq -r '.ewcConsolidations // 0' "$GNN_STATE" 2>/dev/null || echo "0")
+  GNN_SESSIONS=$(jq -r '.trainingSessions // 0' "$GNN_STATE" 2>/dev/null || echo "0")
+  CACHE_STATUS="●"
+
+  # Color based on activity
+  if [ "$GNN_NODES" -gt 10 ]; then
+    CACHE_COLOR="${BRIGHT_GREEN}"
+  elif [ "$GNN_NODES" -gt 0 ]; then
+    CACHE_COLOR="${BRIGHT_CYAN}"
+  else
+    CACHE_COLOR="${YELLOW}"
+  fi
+fi
+
+# Check if cache optimizer daemon is running
+CACHE_DAEMON_RUNNING="false"
+CACHE_DAEMON_PID="${PROJECT_DIR}/.claude-flow/pids/cache-optimizer.pid"
+if [ -f "$CACHE_DAEMON_PID" ]; then
+  CACHED_PID=$(cat "$CACHE_DAEMON_PID" 2>/dev/null)
+  if ps -p "$CACHED_PID" > /dev/null 2>&1; then
+    CACHE_DAEMON_RUNNING="true"
+    CACHE_STATUS="◉"
+  fi
+fi
+
 # Calculate Intelligence Score based on learning patterns and training
 INTEL_SCORE=0
 INTEL_COLOR="${DIM}"
