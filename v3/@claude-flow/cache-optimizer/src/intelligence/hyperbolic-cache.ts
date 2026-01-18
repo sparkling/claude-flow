@@ -525,10 +525,10 @@ export class DriftDetector {
     const types: CacheEntryType[] = [
       'system_prompt', 'claude_md', 'file_read', 'file_write',
       'tool_result', 'bash_output', 'user_message', 'assistant_message',
-      'search_result', 'context_summary', 'agent_state', 'memory_snapshot',
-      'compressed_history', 'semantic_index', 'embedding_cache', 'other',
+      'mcp_context',
     ];
-    return types.indexOf(type) % 16;
+    const index = types.indexOf(type);
+    return index >= 0 ? index : 8; // Default to last position if unknown
   }
 
   private getTierIndex(tier: string): number {
