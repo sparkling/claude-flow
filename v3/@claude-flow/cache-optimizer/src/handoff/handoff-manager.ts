@@ -1267,45 +1267,104 @@ export class HandoffManager {
 
   /**
    * Process a background request
+   *
+   * SECURITY: Uses safe script file approach instead of inline code
+   * to prevent command injection attacks
    */
   private async processBackgroundRequest(requestId: string): Promise<void> {
     const queueItem = this.queue.get(requestId);
     if (!queueItem || queueItem.status !== 'pending') return;
 
+    // SECURITY: Validate request ID to prevent path traversal
+    const idValidation = validateRequestId(requestId);
+    if (!idValidation.valid) {
+      queueItem.status = 'failed';
+      queueItem.response = {
+        requestId,
+        provider: 'background',
+        model: 'unknown',
+        content: '',
+        tokens: { prompt: 0, completion: 0, total: 0 },
+        durationMs: 0,
+        status: 'failed',
+        error: `Invalid request ID: ${idValidation.error}`,
+        completedAt: Date.now(),
+      };
+      this.metrics.failedRequests++;
+      return;
+    }
+
     queueItem.status = 'processing';
     queueItem.startedAt = Date.now();
     this.metrics.activeRequests++;
 
+    // SECURITY: Sanitize work directory
+    const safeWorkDir = sanitizeWorkDir(this.config.background.workDir);
+
     // Write request to temp file for background process
-    const requestFile = join(this.config.background.workDir, `${requestId}.json`);
+    // Use sanitized ID for filename
+    const requestFile = join(safeWorkDir, `${idValidation.sanitized}.json`);
+
+    // SECURITY: Create a safe script file instead of inline code
+    // This prevents command injection via requestFile path
+    const scriptFile = join(safeWorkDir, `${idValidation.sanitized}.script.mjs`);
+
+    // Write request data
     await writeFile(requestFile, JSON.stringify(queueItem.request));
 
-    // Spawn background process
-    const child = spawn('node', [
-      '-e',
-      `
-      const fs = require('fs');
-      const requestData = JSON.parse(fs.readFileSync('${requestFile}', 'utf8'));
+    // SECURITY: Write a safe worker script that reads the request file by argument
+    // No string interpolation of paths in the script content
+    const workerScript = `
+import { readFile } from 'fs/promises';
 
-      // Simple fetch-based request
-      async function run() {
-        const response = await fetch(requestData.endpoint || 'http://localhost:11434/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: requestData.model || 'llama3.2',
-            messages: [{ role: 'user', content: requestData.prompt }],
-            stream: false,
-          }),
-        });
-        const data = await response.json();
-        console.log(JSON.stringify({ success: true, content: data.message?.content || '' }));
-      }
-      run().catch(e => console.log(JSON.stringify({ success: false, error: e.message })));
-      `,
-    ], {
+async function run() {
+  try {
+    // Read request file path from argv
+    const requestPath = process.argv[2];
+    if (!requestPath) {
+      console.log(JSON.stringify({ success: false, error: 'No request file specified' }));
+      process.exit(1);
+    }
+
+    const requestData = JSON.parse(await readFile(requestPath, 'utf8'));
+
+    const response = await fetch(requestData.endpoint || 'http://localhost:11434/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: requestData.model || 'llama3.2',
+        messages: [{ role: 'user', content: requestData.prompt }],
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
+    }
+
+    const data = await response.json();
+    console.log(JSON.stringify({ success: true, content: data.message?.content || '' }));
+  } catch (e) {
+    console.log(JSON.stringify({ success: false, error: e.message || 'Unknown error' }));
+  }
+}
+
+run();
+`;
+
+    await writeFile(scriptFile, workerScript);
+
+    // SECURITY: Spawn using script file path passed as argument
+    // No code injection possible since we pass data as file argument
+    const child = spawn('node', [scriptFile, requestFile], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      // SECURITY: Clean environment to prevent env variable leakage
+      env: {
+        PATH: process.env.PATH,
+        NODE_ENV: process.env.NODE_ENV || 'production',
+      },
     });
 
     this.activeRequests.set(requestId, child);
