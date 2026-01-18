@@ -616,8 +616,131 @@ function logError(message: string): void {
 // File System Interception
 // ============================================================================
 
+// ============================================================================
+// Cache Optimization Settings
+// ============================================================================
+
+const OPTIMIZATION_ENABLED = process.env.CACHE_OPTIMIZE !== 'false';
+const TARGET_SIZE_BYTES = parseInt(process.env.CACHE_TARGET_SIZE || '500000', 10); // 500KB target
+const KEEP_RECENT_MESSAGES = parseInt(process.env.CACHE_KEEP_RECENT || '50', 10);
+
 /**
- * Intercepted readFileSync
+ * Optimize messages to reduce size while preserving important context
+ */
+function optimizeMessages(messages: Array<{ line: string; parsed: any }>): string[] {
+  if (!OPTIMIZATION_ENABLED) {
+    return messages.map(m => m.line);
+  }
+
+  const totalSize = messages.reduce((sum, m) => sum + m.line.length, 0);
+
+  // If under target, no optimization needed
+  if (totalSize < TARGET_SIZE_BYTES) {
+    logInfo(`Size ${(totalSize/1024).toFixed(1)}KB under target, no optimization`);
+    return messages.map(m => m.line);
+  }
+
+  logInfo(`Optimizing: ${(totalSize/1024).toFixed(1)}KB -> target ${(TARGET_SIZE_BYTES/1024).toFixed(1)}KB`);
+
+  const optimized: string[] = [];
+  const kept = {
+    summaries: 0,
+    user: 0,
+    assistant: 0,
+    system: 0,
+    progress: 0,
+    other: 0,
+    removed: 0,
+  };
+
+  // Priority-based selection
+  // 1. ALL summaries (most valuable - compressed context)
+  // 2. ALL system messages (session metadata)
+  // 3. Recent user/assistant messages
+  // 4. Skip most progress messages (verbose, low value)
+
+  const summaries: string[] = [];
+  const systemMsgs: string[] = [];
+  const userAssistant: Array<{ line: string; idx: number }> = [];
+  const progressMsgs: string[] = [];
+  const otherMsgs: string[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const { line, parsed } = messages[i];
+    const type = parsed?.type || 'unknown';
+
+    switch (type) {
+      case 'summary':
+        summaries.push(line);
+        break;
+      case 'system':
+        systemMsgs.push(line);
+        break;
+      case 'user':
+      case 'assistant':
+        userAssistant.push({ line, idx: i });
+        break;
+      case 'progress':
+        progressMsgs.push(line);
+        break;
+      default:
+        otherMsgs.push(line);
+    }
+  }
+
+  // Always keep all summaries
+  for (const line of summaries) {
+    optimized.push(line);
+    kept.summaries++;
+  }
+
+  // Always keep system messages
+  for (const line of systemMsgs) {
+    optimized.push(line);
+    kept.system++;
+  }
+
+  // Keep recent user/assistant messages (conversation flow)
+  const recentUA = userAssistant.slice(-KEEP_RECENT_MESSAGES * 2);
+  for (const { line } of recentUA) {
+    optimized.push(line);
+    if (line.includes('"type":"user"')) kept.user++;
+    else kept.assistant++;
+  }
+
+  // Calculate remaining budget
+  let currentSize = optimized.reduce((sum, l) => sum + l.length, 0);
+  const remainingBudget = TARGET_SIZE_BYTES - currentSize;
+
+  // Add progress messages if we have budget (keep only completion ones)
+  if (remainingBudget > 10000) {
+    const completedProgress = progressMsgs.filter(p =>
+      p.includes('"status":"completed"') || p.includes('"status":"success"')
+    ).slice(-20);
+
+    for (const line of completedProgress) {
+      if (currentSize + line.length < TARGET_SIZE_BYTES) {
+        optimized.push(line);
+        currentSize += line.length;
+        kept.progress++;
+      }
+    }
+  }
+
+  kept.removed = messages.length - optimized.length;
+
+  const newSize = optimized.reduce((sum, l) => sum + l.length, 0);
+  const reduction = ((totalSize - newSize) / totalSize * 100).toFixed(1);
+
+  logInfo(`Optimized: ${messages.length} -> ${optimized.length} messages (${reduction}% reduction)`);
+  logInfo(`  Kept: ${kept.summaries} summaries, ${kept.user} user, ${kept.assistant} assistant, ${kept.system} system, ${kept.progress} progress`);
+  logInfo(`  Removed: ${kept.removed} low-priority messages`);
+
+  return optimized;
+}
+
+/**
+ * Intercepted readFileSync - returns OPTIMIZED content to reduce Claude's context
  */
 function interceptedReadFileSync(
   filePath: fs.PathOrFileDescriptor,
@@ -631,28 +754,31 @@ function interceptedReadFileSync(
   }
 
   const sessionId = parseSessionId(pathStr);
-  if (!sessionId || !db || !initialized) {
+  if (!sessionId) {
     return originalFs.readFileSync(filePath, options as any);
   }
 
   try {
-    // Read from SQLite
-    const stmt = db.prepare('SELECT content FROM messages WHERE session_id = ? ORDER BY line_number');
-    stmt.bind([sessionId]);
+    // Read original file
+    const originalContent = originalFs.readFileSync(filePath, 'utf8') as string;
+    const originalLines = originalContent.split('\n').filter(l => l.trim());
 
-    const lines: string[] = [];
-    while (stmt.step()) {
-      lines.push(stmt.get()[0] as string);
-    }
-    stmt.free();
-
-    if (lines.length === 0) {
-      // Fall back to original file if DB is empty
-      return originalFs.readFileSync(filePath, options as any);
+    if (originalLines.length === 0) {
+      return originalContent;
     }
 
-    const content = lines.join('\n') + '\n';
-    logInfo(`Read ${lines.length} messages for session ${sessionId.slice(0, 8)}...`);
+    // Parse all messages
+    const messages = originalLines.map(line => ({
+      line,
+      parsed: safeJsonParse(line),
+    }));
+
+    // Optimize to reduce size
+    const optimizedLines = optimizeMessages(messages);
+
+    const content = optimizedLines.join('\n') + '\n';
+
+    logInfo(`Serving optimized cache: ${originalLines.length} -> ${optimizedLines.length} messages`);
 
     // Return in requested format
     const encoding = typeof options === 'string' ? options : options?.encoding;
