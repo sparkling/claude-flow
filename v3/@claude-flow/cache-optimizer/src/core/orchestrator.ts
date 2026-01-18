@@ -244,7 +244,7 @@ export class CacheOptimizer {
     }
 
     // Second pass: if still need to free tokens, use LRU eviction (oldest entries first)
-    if (freedTokens < tokensToFree && urgency !== 'none') {
+    if (freedTokens < tokensToFree) {
       // Sort remaining entries by age (oldest first for LRU eviction)
       const remainingEntries = sortedEntries
         .filter(e => !toPrune.includes(e.id) && !toCompress.includes(e.id))
