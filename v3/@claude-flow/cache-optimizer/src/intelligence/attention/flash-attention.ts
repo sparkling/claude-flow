@@ -188,7 +188,7 @@ export class FlashAttention {
   /**
    * Compute attention based on entry type and current context
    */
-  private computeTypeBasedAttention(entry: CacheEntry, context: ScoringContext): number {
+  private computeTypeBasedAttention(entry: CacheEntry, _context: ScoringContext): number {
     // Type-based attention weights
     const typeWeights: Record<string, number> = {
       'system_prompt': 0.9,  // Always highly relevant
