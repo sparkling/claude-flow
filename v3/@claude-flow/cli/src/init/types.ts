@@ -114,6 +114,8 @@ export interface AgentsConfig {
   sparc: boolean;
   /** Include swarm coordinators */
   swarm: boolean;
+  /** Include browser automation agents (agent-browser) */
+  browser: boolean;
   /** Include V3-specific agents (security, memory, performance, etc.) */
   v3: boolean;
   /** Include optimization agents */
