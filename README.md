@@ -4494,6 +4494,7 @@ Domain-Driven Design with bounded contexts, clean architecture, and measured per
 | `@claude-flow/testing` | Quality assurance | London School TDD, Vitest, fixtures, mocks |
 | `@claude-flow/deployment` | Release automation | Versioning, changelogs, NPM publishing |
 | `@claude-flow/shared` | Common utilities | Types, validation schemas, constants |
+| `@claude-flow/browser` | Browser automation | 59 MCP tools, element refs, trajectory learning |
 
 ### Architecture Principles
 
