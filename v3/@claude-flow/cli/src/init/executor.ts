@@ -241,6 +241,10 @@ export interface UpgradeResult {
   created: string[];
   preserved: string[];
   errors: string[];
+  /** Added by --add-missing flag */
+  addedSkills?: string[];
+  addedAgents?: string[];
+  addedCommands?: string[];
 }
 
 /**
