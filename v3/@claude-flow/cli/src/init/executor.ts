@@ -39,6 +39,7 @@ const SKILLS_MAP: Record<string, string[]> = {
     'stream-chain',
     'skill-builder',
   ],
+  browser: ['browser'],  // agent-browser integration
   agentdb: [
     'agentdb-advanced',
     'agentdb-learning',
