@@ -2294,7 +2294,7 @@ npx claude-flow@v3alpha transfer-store download --id "security-essentials" --app
 ---
 
 <details>
-<summary><h2>🛠️ Helper Scripts — 30+ Development Automation Tools</h2></summary>
+<summary>🛠️ <strong>Helper Scripts</strong> — 30+ Development Automation Tools</summary>
 
 The `.claude/helpers/` directory contains **30+ automation scripts** for development, monitoring, learning, and swarm coordination. These scripts integrate with hooks and can be called directly or via the V3 master tool.
 
