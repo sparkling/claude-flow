@@ -19,7 +19,7 @@
     "test:e2e": "vitest run tests/e2e",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node -e \"try { require('child_process').execSync('agent-browser --version', {stdio:'ignore'}); } catch { console.log('\\n📦 @claude-flow/browser installed!\\n\\nFor CLI usage, install agent-browser globally:\\n  npm install -g agent-browser@latest\\n'); }\""
+    "postinstall": "node -e \"const{execSync}=require('child_process');try{execSync('agent-browser --version',{stdio:'ignore'});}catch{console.log('\\n📦 Installing agent-browser globally...');try{execSync('npm install -g agent-browser@latest',{stdio:'inherit'});console.log('✅ agent-browser installed successfully!');}catch(e){console.log('⚠️  Could not install agent-browser globally. Run manually:\\n   npm install -g agent-browser@latest');}}\""
   },
   "dependencies": {
     "agent-browser": "^0.6.0",
