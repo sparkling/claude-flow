@@ -42,9 +42,9 @@ describe('BrowserService', () => {
       expect(id.startsWith('traj-')).toBe(true);
     });
 
-    it('should end a trajectory', () => {
+    it('should end a trajectory', async () => {
       service.startTrajectory('test task');
-      const trajectory = service.endTrajectory(true, 'success');
+      const trajectory = await service.endTrajectory(true, 'success');
 
       expect(trajectory).toBeDefined();
       expect(trajectory?.goal).toBe('test task');
@@ -52,8 +52,8 @@ describe('BrowserService', () => {
       expect(trajectory?.verdict).toBe('success');
     });
 
-    it('should return null if no trajectory is active', () => {
-      const trajectory = service.endTrajectory(true);
+    it('should return null if no trajectory is active', async () => {
+      const trajectory = await service.endTrajectory(true);
       expect(trajectory).toBeNull();
     });
   });
