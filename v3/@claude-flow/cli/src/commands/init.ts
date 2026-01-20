@@ -747,8 +747,43 @@ const upgradeCommand: Command = {
         output.writeln();
       }
 
+      // Show added assets (when --add-missing flag is used)
+      if (result.addedSkills && result.addedSkills.length > 0) {
+        output.printBox(
+          result.addedSkills.map(s => `+ ${s}`).join('\n'),
+          `Added Skills (${result.addedSkills.length} new)`
+        );
+        output.writeln();
+      }
+
+      if (result.addedAgents && result.addedAgents.length > 0) {
+        output.printBox(
+          result.addedAgents.map(a => `+ ${a}`).join('\n'),
+          `Added Agents (${result.addedAgents.length} new)`
+        );
+        output.writeln();
+      }
+
+      if (result.addedCommands && result.addedCommands.length > 0) {
+        output.printBox(
+          result.addedCommands.map(c => `+ ${c}`).join('\n'),
+          `Added Commands (${result.addedCommands.length} new)`
+        );
+        output.writeln();
+      }
+
       output.printSuccess('Your statusline helper has been updated to the latest version');
       output.printInfo('Existing metrics and learning data were preserved');
+
+      // Show summary for --add-missing
+      if (addMissing) {
+        const totalAdded = (result.addedSkills?.length || 0) + (result.addedAgents?.length || 0) + (result.addedCommands?.length || 0);
+        if (totalAdded > 0) {
+          output.printSuccess(`Added ${totalAdded} missing assets to your project`);
+        } else {
+          output.printInfo('All skills, agents, and commands are already up to date');
+        }
+      }
 
       if (ctx.flags.format === 'json') {
         output.printJson(result);
