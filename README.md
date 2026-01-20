@@ -5329,7 +5329,7 @@ export CLAUDE_FLOW_MEMORY_PATH="./data"
 ---
 
 <details>
-<summary><h2>⚙️ Environment Variables </h2></summary>
+<summary>⚙️ <strong>Environment Variables</strong></summary>
 
 ### Core Configuration
 
