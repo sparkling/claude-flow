@@ -2616,7 +2616,7 @@ Skills are defined in YAML with:
 ---
 
 <details>
-<summary><h2>🎫 Claims & Work Coordination — Human-Agent Task Management</h2></summary>
+<summary>🎫 <strong>Claims & Work Coordination</strong> — Human-Agent Task Management</summary>
 
 The Claims system manages **who is working on what** — whether human or agent. It prevents conflicts, enables handoffs, and balances work across your team.
 
