@@ -4,6 +4,8 @@
  */
 
 import { AgentBrowserAdapter } from '../infrastructure/agent-browser-adapter.js';
+import { createMemoryManager, type BrowserMemoryManager } from '../infrastructure/memory-integration.js';
+import { getSecurityScanner, type BrowserSecurityScanner, type ThreatScanResult } from '../infrastructure/security-integration.js';
 import type {
   Snapshot,
   SnapshotOptions,
