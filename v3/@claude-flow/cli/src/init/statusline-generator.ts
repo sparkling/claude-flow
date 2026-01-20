@@ -1136,9 +1136,14 @@ function generateStatusline() {
   const vectorColor = agentdb.vectorCount > 0 ? c.brightGreen : c.dim;
   const testColor = tests.testFiles > 0 ? c.brightGreen : c.dim;
 
+  // Show ADR compliance % if from real data, otherwise show count
+  const adrDisplay = adrs.compliance > 0
+    ? \`\${adrColor}●\${adrs.compliance}%\${c.reset}\`
+    : \`\${adrColor}●\${adrs.implemented}/\${adrs.count}\${c.reset}\`;
+
   lines.push(
     \`\${c.brightPurple}🔧 Architecture\${c.reset}    \` +
-    \`\${c.cyan}ADRs\${c.reset} \${adrColor}●\${adrs.implemented}/\${adrs.count}\${c.reset}  \${c.dim}│\${c.reset}  \` +
+    \`\${c.cyan}ADRs\${c.reset} \${adrDisplay}  \${c.dim}│\${c.reset}  \` +
     \`\${c.cyan}DDD\${c.reset} \${dddColor}●\${String(progress.dddProgress).padStart(3)}%\${c.reset}  \${c.dim}│\${c.reset}  \` +
     \`\${c.cyan}Security\${c.reset} \${securityColor}●\${security.status}\${c.reset}\`
   );
