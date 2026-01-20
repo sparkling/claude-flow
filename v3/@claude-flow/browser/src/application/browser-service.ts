@@ -80,7 +80,7 @@ export class BrowserService {
 
     trajectory.steps.push({
       action,
-      input,
+      input: input as Record<string, unknown>,
       result,
       snapshot: trajectory.lastSnapshot,
       timestamp: new Date().toISOString(),
