@@ -4129,6 +4129,10 @@ ruvector-postgres/
 
 ---
 
+## ☁️ Cloud & Deployment
+
+Cloud platform integration and deployment tools.
+
 <details>
 <summary>☁️ <strong>Flow Nexus</strong> — Cloud Platform Integration</summary>
 
