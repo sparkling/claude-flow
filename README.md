@@ -971,6 +971,10 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
 
 ---
 
+## 📦 Core Features
+
+Comprehensive capabilities for enterprise-grade AI agent orchestration.
+
 <details>
 <summary>📦 <strong>Features</strong> — 54+ Agents, Swarm Topologies, MCP Tools & Security</summary>
 
