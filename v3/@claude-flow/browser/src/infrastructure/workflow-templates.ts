@@ -136,7 +136,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     ],
     steps: [
       { id: 'navigate', action: 'open', target: '\${url}', waitAfter: 1000 },
-      { id: 'click-oauth', action: 'click', target: '${providerButton}', waitAfter: 2000 },
+      { id: 'click-oauth', action: 'click', target: '\${providerButton}', waitAfter: 2000 },
       { id: 'enter-email', action: 'fill', target: '[type="email"], #identifierId', value: '${email}' },
       { id: 'next-email', action: 'click', target: '#identifierNext, [type="submit"]', waitAfter: 1500 },
       { id: 'enter-password', action: 'fill', target: '[type="password"], [name="password"]', value: '\${password}' },
