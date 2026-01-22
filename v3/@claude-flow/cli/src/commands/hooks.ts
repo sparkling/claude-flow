@@ -169,9 +169,9 @@ const postEditCommand: Command = {
     {
       name: 'success',
       short: 's',
-      description: 'Whether the edit was successful',
+      description: 'Whether the edit was successful (defaults to true)',
       type: 'boolean',
-      required: true
+      default: true
     },
     {
       name: 'outcome',
