@@ -405,9 +405,9 @@ const postCommandCommand: Command = {
     {
       name: 'success',
       short: 's',
-      description: 'Whether the command succeeded',
+      description: 'Whether the command succeeded (defaults to true)',
       type: 'boolean',
-      required: true
+      default: true
     },
     {
       name: 'exit-code',
