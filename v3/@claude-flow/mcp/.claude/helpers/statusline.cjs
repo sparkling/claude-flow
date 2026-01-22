@@ -387,11 +387,102 @@ function generateJSON() {
   };
 }
 
+// Generate single-line output for Claude Code compatibility
+// This avoids the multi-line collision bug where Claude Code's internal status
+// (written at absolute terminal coordinates ~cols 15-25) bleeds into conversation
+function generateSingleLine() {
+  const progress = getV3Progress();
+  const security = getSecurityStatus();
+  const swarm = getSwarmStatus();
+  const system = getSystemMetrics();
+
+  const swarmIndicator = swarm.coordinationActive ? '●' : '○';
+  const securityStatus = security.status === 'CLEAN' ? '✓' : security.cvesFixed > 0 ? '~' : '✗';
+
+  // Single line format: Claude Flow V3 | Domains: 3/5 | Swarm: ●2/15 | CVE: ✓3/3 | 🧠12%
+  return `${c.brightPurple}CF-V3${c.reset} ${c.dim}|${c.reset} ` +
+    `${c.cyan}D:${progress.domainsCompleted}/${progress.totalDomains}${c.reset} ${c.dim}|${c.reset} ` +
+    `${c.yellow}S:${swarmIndicator}${swarm.activeAgents}/${swarm.maxAgents}${c.reset} ${c.dim}|${c.reset} ` +
+    `${security.status === 'CLEAN' ? c.green : c.red}CVE:${securityStatus}${security.cvesFixed}/${security.totalCves}${c.reset} ${c.dim}|${c.reset} ` +
+    `${c.dim}🧠${system.intelligencePct}%${c.reset}`;
+}
+
+// Generate safe multi-line output that avoids collision zone
+// The collision zone is columns 15-25 on the SECOND-TO-LAST line
+// We restructure output so that line has minimal/no content in that zone
+function generateSafeMultiline() {
+  const user = getUserInfo();
+  const progress = getV3Progress();
+  const security = getSecurityStatus();
+  const swarm = getSwarmStatus();
+  const system = getSystemMetrics();
+  const lines = [];
+
+  // Line 1: Header (NOT collision zone)
+  let header = `${c.bold}${c.brightPurple}▊ Claude Flow V3 ${c.reset}`;
+  header += `${swarm.coordinationActive ? c.brightCyan : c.dim}● ${c.brightCyan}${user.name}${c.reset}`;
+  if (user.gitBranch) {
+    header += `  ${c.dim}│${c.reset}  ${c.brightBlue}⎇ ${user.gitBranch}${c.reset}`;
+  }
+  header += `  ${c.dim}│${c.reset}  ${c.purple}${user.modelName}${c.reset}`;
+  lines.push(header);
+
+  // Line 2: Separator (NOT collision zone)
+  lines.push(`${c.dim}─────────────────────────────────────────────────────${c.reset}`);
+
+  // Line 3: DDD Progress (NOT collision zone)
+  const domainsColor = progress.domainsCompleted >= 3 ? c.brightGreen : progress.domainsCompleted > 0 ? c.yellow : c.red;
+  lines.push(
+    `${c.brightCyan}🏗️  DDD Domains${c.reset}    ${progressBar(progress.domainsCompleted, progress.totalDomains)}  ` +
+    `${domainsColor}${progress.domainsCompleted}${c.reset}/${c.brightWhite}${progress.totalDomains}${c.reset}    ` +
+    `${c.brightYellow}⚡ 1.0x${c.reset} ${c.dim}→${c.reset} ${c.brightYellow}2.49x-7.47x${c.reset}`
+  );
+
+  // Line 4: COLLISION ZONE LINE - restructure to avoid cols 15-25
+  // Original had content at cols 15-25, now we pad with spaces
+  // Format: "🤖 Swarm  ○ [" starts at col 0, "[" is at ~col 13
+  // We add padding after the indicator to push numbers past col 25
+  const swarmIndicator = swarm.coordinationActive ? `${c.brightGreen}◉${c.reset}` : `${c.dim}○${c.reset}`;
+  const agentsColor = swarm.activeAgents > 0 ? c.brightGreen : c.red;
+  let securityIcon = security.status === 'CLEAN' ? '🟢' : security.status === 'IN_PROGRESS' ? '🟡' : '🔴';
+  let securityColor = security.status === 'CLEAN' ? c.brightGreen : security.status === 'IN_PROGRESS' ? c.brightYellow : c.brightRed;
+
+  // SAFE LINE: Push content past collision zone with padding
+  // Collision is cols 15-25, so we use fixed-width spacing
+  lines.push(
+    `${c.brightYellow}🤖${c.reset}              ` +  // "🤖" + 14 spaces = content starts at col 16+
+    `${swarmIndicator} [${agentsColor}${String(swarm.activeAgents).padStart(2)}${c.reset}/${c.brightWhite}${swarm.maxAgents}${c.reset}]  ` +
+    `${c.brightPurple}👥 ${system.subAgents}${c.reset}    ` +
+    `${securityIcon} ${securityColor}CVE ${security.cvesFixed}${c.reset}/${c.brightWhite}${security.totalCves}${c.reset}    ` +
+    `${c.brightCyan}💾 ${system.memoryMB}MB${c.reset}    ` +
+    `${c.dim}🧠 ${String(system.intelligencePct).padStart(3)}%${c.reset}`
+  );
+
+  // Line 5: Architecture status (LAST LINE - Claude writes BELOW this)
+  const dddColor = progress.dddProgress >= 50 ? c.brightGreen : progress.dddProgress > 0 ? c.yellow : c.red;
+  lines.push(
+    `${c.brightPurple}🔧 Architecture${c.reset}    ` +
+    `${c.cyan}DDD${c.reset} ${dddColor}●${String(progress.dddProgress).padStart(3)}%${c.reset}  ${c.dim}│${c.reset}  ` +
+    `${c.cyan}Security${c.reset} ${securityColor}●${security.status}${c.reset}  ${c.dim}│${c.reset}  ` +
+    `${c.cyan}Memory${c.reset} ${c.brightGreen}●AgentDB${c.reset}  ${c.dim}│${c.reset}  ` +
+    `${c.cyan}Integration${c.reset} ${swarm.coordinationActive ? c.brightCyan : c.dim}●${c.reset}`
+  );
+
+  return lines.join('\n');
+}
+
 // Main
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify(generateJSON(), null, 2));
 } else if (process.argv.includes('--compact')) {
   console.log(JSON.stringify(generateJSON()));
+} else if (process.argv.includes('--single-line') || process.argv.includes('-1')) {
+  // Single-line mode for Claude Code compatibility (avoids collision bug)
+  console.log(generateSingleLine());
+} else if (process.argv.includes('--safe') || process.argv.includes('--claude-compatible')) {
+  // Safe multi-line mode that avoids collision zone
+  console.log(generateSafeMultiline());
 } else {
-  console.log(generateStatusline());
+  // Default: use safe multiline to prevent bleeding
+  console.log(generateSafeMultiline());
 }
