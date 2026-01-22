@@ -2421,7 +2421,10 @@ export default {
   searchEntries,
   listEntries,
   getEntry,
+<<<<<<< HEAD
   deleteEntry,
+=======
+>>>>>>> origin/main
   MEMORY_SCHEMA_V3,
   getInitialMetadata
 };
