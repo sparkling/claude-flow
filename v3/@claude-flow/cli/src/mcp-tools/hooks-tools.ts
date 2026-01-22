@@ -1367,7 +1367,7 @@ export const hooksIntelligenceReset: MCPTool = {
 
 // Intelligence trajectory hooks - REAL implementation using activeTrajectories
 export const hooksTrajectoryStart: MCPTool = {
-  name: 'hooks_intelligence/trajectory-start',
+  name: 'hooks_intelligence_trajectory-start',
   description: 'Begin SONA trajectory for reinforcement learning',
   inputSchema: {
     type: 'object',
@@ -1407,7 +1407,7 @@ export const hooksTrajectoryStart: MCPTool = {
 };
 
 export const hooksTrajectoryStep: MCPTool = {
-  name: 'hooks_intelligence/trajectory-step',
+  name: 'hooks_intelligence_trajectory-step',
   description: 'Record step in trajectory for reinforcement learning',
   inputSchema: {
     type: 'object',
@@ -1453,7 +1453,7 @@ export const hooksTrajectoryStep: MCPTool = {
 };
 
 export const hooksTrajectoryEnd: MCPTool = {
-  name: 'hooks_intelligence/trajectory-end',
+  name: 'hooks_intelligence_trajectory-end',
   description: 'End trajectory and trigger SONA learning with EWC++',
   inputSchema: {
     type: 'object',
@@ -1596,7 +1596,7 @@ export const hooksTrajectoryEnd: MCPTool = {
 
 // Pattern store/search hooks - REAL implementation using storeEntry
 export const hooksPatternStore: MCPTool = {
-  name: 'hooks_intelligence/pattern-store',
+  name: 'hooks_intelligence_pattern-store',
   description: 'Store pattern in ReasoningBank (HNSW-indexed)',
   inputSchema: {
     type: 'object',
@@ -1656,7 +1656,7 @@ export const hooksPatternStore: MCPTool = {
 };
 
 export const hooksPatternSearch: MCPTool = {
-  name: 'hooks_intelligence/pattern-search',
+  name: 'hooks_intelligence_pattern-search',
   description: 'Search patterns using REAL vector search (HNSW when available, brute-force fallback)',
   inputSchema: {
     type: 'object',
@@ -1737,7 +1737,7 @@ export const hooksPatternSearch: MCPTool = {
 
 // Intelligence stats hook
 export const hooksIntelligenceStats: MCPTool = {
-  name: 'hooks_intelligence/stats',
+  name: 'hooks_intelligence_stats',
   description: 'Get RuVector intelligence layer statistics',
   inputSchema: {
     type: 'object',
@@ -1914,7 +1914,7 @@ export const hooksIntelligenceStats: MCPTool = {
 
 // Intelligence learn hook
 export const hooksIntelligenceLearn: MCPTool = {
-  name: 'hooks_intelligence/learn',
+  name: 'hooks_intelligence_learn',
   description: 'Force immediate SONA learning cycle with EWC++ consolidation',
   inputSchema: {
     type: 'object',
@@ -1989,7 +1989,7 @@ export const hooksIntelligenceLearn: MCPTool = {
 
 // Intelligence attention hook
 export const hooksIntelligenceAttention: MCPTool = {
-  name: 'hooks_intelligence/attention',
+  name: 'hooks_intelligence_attention',
   description: 'Compute attention-weighted similarity using MoE/Flash/Hyperbolic',
   inputSchema: {
     type: 'object',
