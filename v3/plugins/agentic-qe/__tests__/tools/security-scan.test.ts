@@ -339,7 +339,7 @@ describe('SecurityScanTool', () => {
       const result = await tool.execute({ targetPath: 'invalid' });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('valid path'));
+      expect(result.errors.some(e => e.includes('valid path'))).toBe(true);
     });
 
     it('should accept valid paths', async () => {
@@ -357,7 +357,7 @@ describe('SecurityScanTool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('timeout'));
+      expect(result.errors.some(e => e.includes('timeout'))).toBe(true);
     });
 
     it('should validate maxFindings minimum', async () => {
@@ -367,7 +367,7 @@ describe('SecurityScanTool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('maxFindings'));
+      expect(result.errors.some(e => e.includes('maxFindings'))).toBe(true);
     });
   });
 

@@ -474,7 +474,7 @@ describe('ChaosInjectTool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('Invalid failureType'));
+      expect(result.errors.some(e => e.includes('Invalid failureType'))).toBe(true);
     });
 
     it('should validate duration minimum', async () => {
@@ -485,7 +485,7 @@ describe('ChaosInjectTool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('duration'));
+      expect(result.errors.some(e => e.includes('duration'))).toBe(true);
     });
 
     it('should validate duration maximum', async () => {
@@ -496,7 +496,7 @@ describe('ChaosInjectTool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('duration'));
+      expect(result.errors.some(e => e.includes('duration'))).toBe(true);
     });
 
     it('should validate intensity range', async () => {
@@ -524,7 +524,7 @@ describe('ChaosInjectTool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('test'));
+      expect(result.errors.some(e => e.includes('test'))).toBe(true);
     });
   });
 
@@ -841,7 +841,7 @@ describe('ChaosInjectTool Safety', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.errors).toContain(expect.stringContaining('duration'));
+    expect(result.errors.some(e => e.includes('duration'))).toBe(true);
   });
 });
 

@@ -117,7 +117,7 @@ class MockGenerateTestsTool {
       errors.push('coverage.target must be between 0 and 100');
     }
 
-    if (input.options?.maxTestsPerFunction && input.options.maxTestsPerFunction < 1) {
+    if (input.options?.maxTestsPerFunction !== undefined && input.options.maxTestsPerFunction < 1) {
       errors.push('options.maxTestsPerFunction must be at least 1');
     }
 

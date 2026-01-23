@@ -336,7 +336,7 @@ describe('AnalyzeCoverageTool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('maxGaps'));
+      expect(result.errors.some(e => e.includes('maxGaps'))).toBe(true);
     });
   });
 
