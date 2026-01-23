@@ -182,23 +182,26 @@ export class QuantumEngine implements IQuantumEngine {
     const rank = new Array(n).fill(0);
 
     const find = (x: number): number => {
-      if (parent[x] !== x) {
-        parent[x] = find(parent[x]);
+      const px = parent[x];
+      if (px !== undefined && px !== x) {
+        parent[x] = find(px);
       }
-      return parent[x];
+      return parent[x] ?? x;
     };
 
     const union = (x: number, y: number): void => {
       const px = find(x);
       const py = find(y);
       if (px === py) return;
-      if (rank[px] < rank[py]) {
+      const rpx = rank[px] ?? 0;
+      const rpy = rank[py] ?? 0;
+      if (rpx < rpy) {
         parent[px] = py;
-      } else if (rank[px] > rank[py]) {
+      } else if (rpx > rpy) {
         parent[py] = px;
       } else {
         parent[py] = px;
-        rank[px]++;
+        rank[px] = rpx + 1;
       }
     };
 
