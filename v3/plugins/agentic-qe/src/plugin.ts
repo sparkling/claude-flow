@@ -52,10 +52,14 @@ interface IPlugin {
  * Plugin registry for tool/hook/worker registration
  */
 interface IPluginRegistry {
-  registerTool(tool: IMCPTool): void;
-  registerHook(hook: QEHookDefinition): void;
-  registerWorker(worker: QEWorkerDefinition): void;
-  registerAgent(agent: QEAgentDefinition): void;
+  registerTool?(tool: IMCPTool): void;
+  registerHook?(hook: QEHookDefinition): void;
+  registerWorker?(worker: QEWorkerDefinition): void;
+  registerAgent?(agent: QEAgentDefinition): void;
+  registerTools?(tools: IMCPTool[]): void;
+  registerHooks?(hooks: QEHookDefinition[]): void;
+  registerWorkers?(workers: QEWorkerDefinition[]): void;
+  registerAgents?(agents: QEAgentDefinition[]): void;
 }
 
 /**
