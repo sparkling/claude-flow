@@ -250,7 +250,9 @@ export class SpectralEngine implements ISpectralEngine {
       // Deflate matrix: A' = A - lambda * v * v^T
       for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-          workingMatrix[i * n + j] -= eigenvalue * v[i] * v[j];
+          const vi = v[i] ?? 0;
+          const vj = v[j] ?? 0;
+          workingMatrix[i * n + j] -= eigenvalue * vi * vj;
         }
       }
     }
