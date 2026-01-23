@@ -235,7 +235,7 @@ export type {
 // Factory Functions
 // ============================================================================
 
-import { PrimeRadiantPlugin } from './plugin';
+import { PrimeRadiantPlugin } from './plugin.js';
 import type { PrimeRadiantConfig } from './types.js';
 
 /**
