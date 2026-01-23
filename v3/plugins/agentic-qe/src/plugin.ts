@@ -653,16 +653,17 @@ export class AQEPlugin implements IPlugin {
     }
 
     this.context = context;
-    this.config = parseWithDefaults(PluginConfigSchema, context.getConfig());
+    const configData = context.getConfig?.() ?? context.config ?? {};
+    this.config = parseWithDefaults(PluginConfigSchema, configData);
 
     // Initialize context mapper
     this.contextMapper = new ContextMapper();
-    context.set('aqe.contextMapper', this.contextMapper);
+    context.set?.('aqe.contextMapper', this.contextMapper);
     this.updateHealth('contextMapper', 'healthy', 'Context mapper initialized');
 
     // Initialize security sandbox
-    this.sandbox = new SecuritySandbox(this.config.sandbox);
-    context.set('aqe.sandbox', this.sandbox);
+    this.sandbox = new SecuritySandbox(this.config.sandbox ?? undefined);
+    context.set?.('aqe.sandbox', this.sandbox);
     this.updateHealth('sandbox', 'healthy', 'Security sandbox initialized');
 
     // Initialize memory namespaces
