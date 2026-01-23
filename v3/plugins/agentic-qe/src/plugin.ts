@@ -1140,7 +1140,7 @@ export class AQEPlugin implements IPlugin {
 
   private async handlePredictDefects(
     input: unknown,
-    context: IPluginContext
+    _context: IPluginContext
   ): Promise<MCPToolResult> {
     const result = {
       status: 'success',
