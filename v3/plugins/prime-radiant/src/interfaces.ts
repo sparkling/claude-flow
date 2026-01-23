@@ -28,7 +28,7 @@ import type {
   MemoryCoherenceValidation,
   PrimeRadiantConfig,
   CoherenceThresholds,
-} from './types';
+} from './types.js';
 
 // ============================================================================
 // Core WASM Bridge Interface
