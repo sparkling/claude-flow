@@ -790,9 +790,11 @@ export class AQEPlugin implements IPlugin {
     }
 
     return {
+      healthy: overallStatus === 'healthy',
       status: overallStatus,
       components,
       lastCheck: Date.now(),
+      uptime: Date.now() - (this.initialized ? 0 : Date.now()),
     };
   }
 
