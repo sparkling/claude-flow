@@ -7,19 +7,16 @@
  * Uses CohomologyEngine from prime-radiant-advanced-wasm
  */
 
-import { z } from 'zod';
 import type {
   MCPTool,
   MCPToolResult,
   ToolContext,
   CoherenceOutput,
-  PerformanceMetrics,
 } from './types.js';
 import {
   CoherenceInputSchema,
   successResult,
   errorResult,
-  trackPerformance,
 } from './types.js';
 
 // Default logger for when context doesn't provide one
