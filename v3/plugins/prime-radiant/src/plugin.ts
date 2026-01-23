@@ -35,9 +35,9 @@ import type {
   CoherenceThresholds,
   CoherenceAction,
   CausalGraph,
-} from './types';
+} from './types.js';
 
-import { DEFAULT_CONFIG, PrimeRadiantErrorCodes } from './types';
+import { DEFAULT_CONFIG, PrimeRadiantErrorCodes } from './types.js';
 
 import {
   validateCoherenceInput,
