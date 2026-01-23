@@ -374,9 +374,21 @@ class PrimeRadiantBridge implements IPrimeRadiantBridge {
       countHomologyClasses: (p: Float32Array[], d: number) => number;
     };
 
+    const rawDiagram = engine.computePersistenceDiagram(points);
+    const persistencePoints = rawDiagram.map(([birth, death], i) => ({
+      birth,
+      death,
+      persistence: death - birth,
+      dimension: i % 2, // Simplified dimension assignment
+    }));
+
     return {
       bettiNumbers: Array.from(engine.computeBettiNumbers(points, dimension)),
-      persistenceDiagram: engine.computePersistenceDiagram(points),
+      persistenceDiagram: {
+        points: persistencePoints,
+        maxPersistence: Math.max(...persistencePoints.map(p => p.persistence), 0),
+        totalPersistence: persistencePoints.reduce((sum, p) => sum + p.persistence, 0),
+      },
       homologyClasses: engine.countHomologyClasses(points, dimension),
     };
   }
