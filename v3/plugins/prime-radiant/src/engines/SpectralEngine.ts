@@ -196,8 +196,9 @@ export class SpectralEngine implements ISpectralEngine {
     for (let i = 0; i < n; i++) {
       let degree = 0;
       for (let j = 0; j < n; j++) {
-        degree += adjacency[i * n + j];
-        laplacian[i * n + j] = -adjacency[i * n + j];
+        const val = adjacency[i * n + j] ?? 0;
+        degree += val;
+        laplacian[i * n + j] = -val;
       }
       laplacian[i * n + i] = degree;
     }
