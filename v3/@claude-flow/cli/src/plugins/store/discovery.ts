@@ -161,11 +161,11 @@ export class PluginDiscoveryService {
       ipnsName: registry.ipnsName,
       plugins: this.getDemoPlugins(),
       categories: [
-        { id: 'ai-ml', name: 'AI/ML', description: 'AI and machine learning plugins', pluginCount: 3 },
-        { id: 'security', name: 'Security', description: 'Security and compliance plugins', pluginCount: 2 },
-        { id: 'devops', name: 'DevOps', description: 'CI/CD and deployment plugins', pluginCount: 2 },
-        { id: 'integrations', name: 'Integrations', description: 'Third-party integrations', pluginCount: 3 },
-        { id: 'agents', name: 'Agents', description: 'Custom agent types', pluginCount: 2 },
+        { id: 'ai-ml', name: 'AI/ML', description: 'AI and machine learning plugins', pluginCount: 5 },
+        { id: 'security', name: 'Security', description: 'Security and compliance plugins', pluginCount: 3 },
+        { id: 'devops', name: 'DevOps', description: 'CI/CD and deployment plugins', pluginCount: 3 },
+        { id: 'integrations', name: 'Integrations', description: 'Third-party integrations', pluginCount: 5 },
+        { id: 'agents', name: 'Agents', description: 'Custom agent types', pluginCount: 3 },
       ],
       authors: [
         {
