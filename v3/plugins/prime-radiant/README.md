@@ -18,36 +18,12 @@ Prime Radiant integrates the `prime-radiant-advanced-wasm` package (92KB WASM, z
 ## Installation
 
 ```bash
-# Install from npm
 npm install @claude-flow/plugin-prime-radiant
-
-# Or register with Claude Flow CLI
-npx claude-flow@v3alpha plugins install @claude-flow/plugin-prime-radiant
 ```
 
-### Programmatic Usage
-
-```typescript
-import {
-  pluginMetadata,
-  CohomologyEngine,
-  SpectralEngine,
-  CausalEngine,
-  QuantumEngine,
-  CategoryEngine,
-  HottEngine,
-  getToolNames
-} from '@claude-flow/plugin-prime-radiant';
-
-// Check plugin info
-console.log(pluginMetadata.name);        // "prime-radiant"
-console.log(pluginMetadata.engines);     // ["cohomology", "spectral", ...]
-console.log(getToolNames());             // ["pr_coherence_check", ...]
-
-// Use engines directly
-const cohomology = new CohomologyEngine();
-const spectral = new SpectralEngine();
-const causal = new CausalEngine();
+Or via Claude Flow CLI:
+```bash
+npx claude-flow@v3alpha plugins install @claude-flow/plugin-prime-radiant
 ```
 
 ## Quick Start
