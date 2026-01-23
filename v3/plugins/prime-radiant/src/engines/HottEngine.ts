@@ -12,11 +12,10 @@
 
 import type {
   IHottEngine,
-  HottResult,
   Path,
   TypedValue,
   WasmModule
-} from '../types';
+} from '../types.js';
 
 /**
  * Type representation in HoTT
