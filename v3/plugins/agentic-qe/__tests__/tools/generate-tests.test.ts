@@ -236,7 +236,7 @@ describe('GenerateTestsTool', () => {
       const result = await tool.execute({ targetPath: '/path/to/file.txt' });
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain(expect.stringContaining('source file'));
+      expect(result.errors.some(e => e.includes('source file'))).toBe(true);
     });
 
     it('should accept valid TypeScript files', async () => {
