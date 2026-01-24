@@ -326,7 +326,7 @@ export class MinCutBridge implements IMinCutBridge {
   async multiWayCut(
     graph: DependencyGraph,
     terminals: string[],
-    weights: Map<string, number>
+    _weights: Map<string, number>
   ): Promise<{
     cutValue: number;
     partitions: Map<string, number>;
