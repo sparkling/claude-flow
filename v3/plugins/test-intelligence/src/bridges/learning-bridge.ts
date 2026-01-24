@@ -195,7 +195,7 @@ export class TestLearningBridge implements LearningBridgeInterface {
   /**
    * Update policy with feedback from actual test results
    */
-  async updatePolicy(feedback: TestFeedback): Promise<void> {
+  async updatePolicyWithFeedback(feedback: TestFeedback): Promise<void> {
     if (!this.isReady()) {
       throw new Error('Learning bridge not initialized');
     }
