@@ -212,12 +212,21 @@ Run stress testing scenarios on portfolios.
 
 ## Performance Targets
 
-| Metric | Target |
-|--------|--------|
-| Portfolio VaR calculation | <100ms for 10K positions |
-| Transaction anomaly scoring | <5ms per transaction |
-| Market regime classification | <50ms for 1-year history |
-| Compliance check | <1s for full entity scan |
+| Metric | Target | Baseline (Traditional) | Improvement |
+|--------|--------|------------------------|-------------|
+| Portfolio VaR calculation | <100ms for 10K positions | ~10s (Monte Carlo) | 100x |
+| Transaction anomaly scoring | <5ms per transaction | ~100ms (rules engine) | 20x |
+| Market regime classification | <50ms for 1-year history | ~1s (statistical) | 20x |
+| Compliance check | <1s for full entity scan | ~30s (manual rules) | 30x |
+
+## Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Model risk (false negatives) | Medium | High | Backtesting framework, shadow mode |
+| Regulatory non-compliance | Low | Critical | Explainability, audit trails, model governance |
+| Market data latency | Medium | Medium | Caching, fallback to last known values |
+| Historical data quality | Medium | Medium | Data validation, missing data handling |
 
 ## Regulatory Compliance
 
