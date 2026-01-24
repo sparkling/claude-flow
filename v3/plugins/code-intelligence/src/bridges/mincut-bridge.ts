@@ -335,7 +335,6 @@ export class MinCutBridge implements IMinCutBridge {
       await this.initialize();
     }
 
-    const nodeCount = graph.nodes.length;
     const numTerminals = terminals.length;
 
     if (numTerminals < 2) {
