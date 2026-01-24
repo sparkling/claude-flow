@@ -771,6 +771,14 @@ export class BdBridge {
     this.ensureInitialized();
 
     const validatedId = BeadIdSchema.parse(beadId);
+
+    // Check single bead cache first
+    const cached = singleBeadCache.get(validatedId);
+    if (cached) {
+      this.logger.debug('Bead cache hit', { beadId: validatedId });
+      return cached;
+    }
+
     const args = ['get', validatedId, '--format', 'json'];
 
     const result = await this.execBd(args);
@@ -791,7 +799,12 @@ export class BdBridge {
       );
     }
 
-    return this.parseSingleBead(result.data ?? '');
+    const bead = this.parseSingleBead(result.data ?? '');
+
+    // Cache the result
+    singleBeadCache.set(bead.id, bead);
+
+    return bead;
   }
 
   /**
