@@ -55,7 +55,8 @@ export interface MCPTool<TInput = unknown, TOutput = unknown> {
   description: string;
   category: string;
   version: string;
-  inputSchema: z.ZodType<TInput>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inputSchema: z.ZodType<TInput, z.ZodTypeDef, any>;
   handler: (input: TInput, context: ToolContext) => Promise<MCPToolResult<TOutput>>;
 }
 
