@@ -413,6 +413,7 @@ const statusCommand: Command = {
       // Import real implementations
       const { getIntelligenceStats, initializeIntelligence, benchmarkAdaptation } = await import('../memory/intelligence.js');
       const { getHNSWStatus, loadEmbeddingModel } = await import('../memory/memory-initializer.js');
+      const ruvector = await import('../services/ruvector-training.js');
 
       // Initialize if needed and get real stats
       await initializeIntelligence();
@@ -424,6 +425,10 @@ const statusCommand: Command = {
 
       // Check embedding model
       const modelInfo = await loadEmbeddingModel({ verbose: false });
+
+      // Check RuVector WASM status
+      const ruvectorStats = ruvector.getTrainingStats();
+      const sonaAvailable = ruvector.isSonaAvailable();
 
       spinner.succeed('Neural systems checked');
 
