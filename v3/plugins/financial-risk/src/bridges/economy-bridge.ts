@@ -54,7 +54,7 @@ interface EconomyWasmModule {
     numAssets: number,
     numPeriods: number
   ): Float32Array;
-  memory: WebAssembly.Memory;
+  memory: { buffer: ArrayBuffer };
 }
 
 /**
