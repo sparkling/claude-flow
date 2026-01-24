@@ -1,0 +1,87 @@
+{
+  "name": "@claude-flow/plugin-gastown-bridge",
+  "version": "0.1.0",
+  "description": "Gas Town orchestrator integration for Claude Flow V3 with WASM-accelerated formula parsing and graph analysis",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./bridges": {
+      "import": "./dist/bridges/index.js",
+      "types": "./dist/bridges/index.d.ts"
+    },
+    "./formula": {
+      "import": "./dist/formula/index.js",
+      "types": "./dist/formula/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "wasm/*/pkg",
+    "plugin.yaml",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:wasm": "./scripts/build-wasm.sh",
+    "build:all": "npm run build:wasm && npm run build",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:wasm": "vitest --config vitest.wasm.config.ts",
+    "benchmark": "tsx scripts/benchmark.ts",
+    "prepublishOnly": "npm run build:all"
+  },
+  "keywords": [
+    "claude-flow",
+    "plugin",
+    "gastown",
+    "beads",
+    "orchestration",
+    "workflows",
+    "formulas",
+    "wasm",
+    "multi-agent"
+  ],
+  "author": "rUv",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ruvnet/claude-flow.git",
+    "directory": "v3/plugins/gastown-bridge"
+  },
+  "bugs": {
+    "url": "https://github.com/ruvnet/claude-flow/issues"
+  },
+  "homepage": "https://github.com/ruvnet/claude-flow/tree/main/v3/plugins/gastown-bridge#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "@claude-flow/memory": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@claude-flow/memory": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
+  },
+  "optionalDependencies": {
+    "gastown-formula-wasm": "^0.1.0",
+    "ruvector-gnn-wasm": "^0.1.0"
+  }
+}
