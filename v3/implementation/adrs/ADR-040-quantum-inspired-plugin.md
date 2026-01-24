@@ -282,6 +282,193 @@ Quantum-optimized task scheduling.
 | Dependency resolution | <5s for 1000 packages | ~2min (SAT solver) | 24x |
 | Schedule optimization | <30s for 100 tasks | ~10min (ILP solver) | 20x |
 
+## Security Considerations
+
+### Input Validation (CRITICAL)
+
+All MCP tool inputs MUST be validated using Zod schemas:
+
+```typescript
+// quantum/annealing-solve input validation
+const AnnealingSolveSchema = z.object({
+  problem: z.object({
+    type: z.enum(['qubo', 'ising', 'sat', 'max_cut', 'tsp', 'dependency']),
+    variables: z.number().int().min(1).max(10000), // Max 10K variables
+    constraints: z.array(z.unknown()).max(100000),
+    objective: z.record(z.string(), z.number().finite())
+  }),
+  parameters: z.object({
+    numReads: z.number().int().min(1).max(10000).default(1000),
+    annealingTime: z.number().min(1).max(1000).default(20),
+    chainStrength: z.number().min(0.1).max(100).default(1.0),
+    temperature: z.object({
+      initial: z.number().min(0.001).max(1000).optional(),
+      final: z.number().min(0.0001).max(100).optional()
+    }).optional()
+  }).optional(),
+  embedding: z.enum(['auto', 'minor', 'pegasus', 'chimera']).optional()
+});
+
+// quantum/qaoa-optimize input validation
+const QAOAOptimizeSchema = z.object({
+  problem: z.object({
+    type: z.enum(['max_cut', 'portfolio', 'scheduling', 'routing']),
+    graph: z.object({
+      nodes: z.number().int().min(1).max(1000),
+      edges: z.array(z.tuple([z.number(), z.number()])).max(100000)
+    }),
+    weights: z.record(z.string(), z.number().finite()).optional()
+  }),
+  circuit: z.object({
+    depth: z.number().int().min(1).max(20).default(3),
+    optimizer: z.enum(['cobyla', 'bfgs', 'adam']).default('cobyla'),
+    initialParams: z.enum(['random', 'heuristic', 'transfer']).optional()
+  }).optional(),
+  shots: z.number().int().min(100).max(100000).default(1024)
+});
+
+// quantum/grover-search input validation
+const GroverSearchSchema = z.object({
+  searchSpace: z.object({
+    size: z.number().int().min(1).max(1_000_000_000), // Max 1B elements
+    oracle: z.string().max(10000), // Predicate definition
+    structure: z.enum(['unstructured', 'database', 'tree', 'graph'])
+  }),
+  targets: z.number().int().min(1).max(1000).default(1),
+  iterations: z.enum(['optimal', 'fixed', 'adaptive']).default('optimal'),
+  amplification: z.object({
+    method: z.enum(['standard', 'fixed_point', 'robust']).optional(),
+    boostFactor: z.number().min(1).max(10).optional()
+  }).optional()
+});
+```
+
+### WASM Security Constraints (CRITICAL FOR EXOTIC ALGORITHMS)
+
+| Constraint | Value | Rationale |
+|------------|-------|-----------|
+| Memory Limit | 4GB max | Quantum simulation is memory-intensive |
+| CPU Time Limit | 600 seconds (10 min) | Allow long optimization runs |
+| Iteration Limit | 1M iterations max | Prevent infinite loops |
+| Variable Limit | 10K variables max | Bound computational complexity |
+| No Parallelism Escape | WASM threads only | Prevent resource exhaustion |
+
+### Computational Resource Limits (HIGH)
+
+```typescript
+// Quantum-inspired algorithms can be computationally expensive
+// MUST enforce strict resource limits
+
+interface QuantumResourceLimits {
+  maxVariables: 10000;       // Problem size limit
+  maxIterations: 1000000;    // Annealing/optimization steps
+  maxMemoryBytes: 4294967296; // 4GB
+  maxCpuTimeMs: 600000;      // 10 minutes
+  maxCircuitDepth: 20;       // QAOA circuit depth
+  maxQubits: 50;             // Simulated qubits
+
+  // Progress checkpoints (cancel if no progress)
+  progressCheckIntervalMs: 10000; // Check every 10 seconds
+  minProgressThreshold: 0.001;    // Min improvement per checkpoint
+}
+
+// Enforce limits during execution
+async function runWithLimits<T>(
+  operation: () => Promise<T>,
+  limits: QuantumResourceLimits
+): Promise<T> {
+  const startTime = Date.now();
+  const memoryBefore = process.memoryUsage().heapUsed;
+
+  // Set up timeout
+  const timeout = setTimeout(() => {
+    throw new ResourceLimitError('CPU_TIME_EXCEEDED');
+  }, limits.maxCpuTimeMs);
+
+  try {
+    const result = await operation();
+    return result;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+```
+
+### Denial of Service Prevention (HIGH)
+
+```typescript
+// Quantum problems can be crafted to cause exponential blowup
+// Validate problem structure before processing
+
+function validateQuantumProblem(problem: QuantumProblem): ValidationResult {
+  // Check for pathological cases
+  if (problem.variables > 10000) {
+    return { valid: false, error: 'Too many variables' };
+  }
+
+  // Detect highly connected graphs (exponential complexity)
+  const avgDegree = problem.constraints.length / problem.variables;
+  if (avgDegree > problem.variables / 10) {
+    return { valid: false, error: 'Graph too densely connected' };
+  }
+
+  // Check coefficient magnitudes (numerical stability)
+  for (const coeff of Object.values(problem.objective)) {
+    if (!Number.isFinite(coeff) || Math.abs(coeff) > 1e15) {
+      return { valid: false, error: 'Invalid coefficient magnitude' };
+    }
+  }
+
+  return { valid: true };
+}
+```
+
+### Identified Security Risks
+
+| Risk ID | Severity | Description | Mitigation |
+|---------|----------|-------------|------------|
+| QUANT-SEC-001 | **HIGH** | DoS via exponentially complex problems | Problem validation, complexity bounds |
+| QUANT-SEC-002 | **HIGH** | Resource exhaustion via large simulations | Memory/CPU limits, progress monitoring |
+| QUANT-SEC-003 | **MEDIUM** | Numerical overflow in quantum operations | Coefficient validation, numerical guards |
+| QUANT-SEC-004 | **MEDIUM** | Oracle injection (arbitrary predicate) | Predicate sandboxing, no eval() |
+| QUANT-SEC-005 | **LOW** | Timing side-channels revealing problem structure | Constant-time operations where feasible |
+
+### Oracle Security (Grover Search)
+
+```typescript
+// The oracle predicate MUST be sandboxed
+// NEVER use eval() or Function() constructor
+
+// BAD - arbitrary code execution
+const oracle = new Function('x', userProvidedPredicate);
+
+// GOOD - parsed and interpreted safely
+const oracleAST = parseOraclePredicate(userProvidedPredicate);
+const oracle = compileOracleToSafeFunction(oracleAST);
+
+// Allowed predicate operations:
+// - Comparison: ==, !=, <, >, <=, >=
+// - Logical: &&, ||, !
+// - Arithmetic: +, -, *, /, %
+// - Property access: x.field
+// NOT allowed:
+// - Function calls
+// - Object construction
+// - Property assignment
+```
+
+### Rate Limiting
+
+```typescript
+const QuantumRateLimits = {
+  'quantum/annealing-solve': { requestsPerMinute: 5, maxConcurrent: 1 },
+  'quantum/qaoa-optimize': { requestsPerMinute: 5, maxConcurrent: 1 },
+  'quantum/grover-search': { requestsPerMinute: 10, maxConcurrent: 2 },
+  'quantum/dependency-resolve': { requestsPerMinute: 10, maxConcurrent: 2 },
+  'quantum/schedule-optimize': { requestsPerMinute: 5, maxConcurrent: 1 }
+};
+```
+
 ## Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
