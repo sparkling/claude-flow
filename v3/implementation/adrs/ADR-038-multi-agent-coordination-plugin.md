@@ -357,6 +357,16 @@ The plugin supports developing emergent communication protocols:
 ### Neutral
 - Can fallback to rule-based coordination when needed
 
+## Related ADRs
+
+| ADR | Relationship |
+|-----|--------------|
+| ADR-004: Plugin Architecture | Foundation - Defines plugin structure |
+| ADR-017: RuVector Integration | Dependency - Provides WASM packages |
+| ADR-039: Cognitive Kernel | Related - Agent cognitive capabilities |
+| ADR-040: Quantum Optimizer | Related - Resource allocation optimization |
+| ADR-041: Hyperbolic Reasoning | Related - Agent hierarchy embeddings |
+
 ## References
 
 - Multi-Agent RL Survey: https://arxiv.org/abs/1911.10635
