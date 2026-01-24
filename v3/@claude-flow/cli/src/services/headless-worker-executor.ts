@@ -1126,6 +1126,7 @@ Analyze the above codebase context and provide your response following the forma
         cwd: this.projectRoot,
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true, // Prevent phantom console windows on Windows
       });
 
       // Setup timeout
