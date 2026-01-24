@@ -55,7 +55,7 @@ const bottlenecks = await plugin.detectBottlenecks({
 console.log('Detected bottlenecks:', bottlenecks);
 ```
 
-## Available MCP Tools
+## MCP Tools
 
 ### 1. `perf/bottleneck-detect`
 
