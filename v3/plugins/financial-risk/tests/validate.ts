@@ -105,7 +105,7 @@ async function main() {
     {
       entity: 'bank-123',
       regulations: ['basel3', 'aml'],
-      scope: 'full',
+      scope: 'all',  // Valid options: 'positions', 'transactions', 'capital', 'reporting', 'all'
       asOfDate: new Date().toISOString().split('T')[0],
     }
   ));
