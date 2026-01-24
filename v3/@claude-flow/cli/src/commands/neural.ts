@@ -801,11 +801,14 @@ const importCommand: Command = {
       const path = await import('path');
       const crypto = await import('crypto');
 
-      let importData: {
-        pinataContent: { patterns: Array<{ id: string; trigger: string; action: string; confidence: number; usageCount: number }> };
+      type ImportDataType = {
+        pinataContent?: { patterns: Array<{ id: string; trigger: string; action: string; confidence: number; usageCount: number; category?: string }> };
+        patterns?: Array<{ id: string; trigger: string; action: string; confidence: number; usageCount: number; category?: string }>;
         signature?: string;
         publicKey?: string;
       };
+
+      let importData: ImportDataType | null = null;
 
       // Fetch from IPFS or file
       if (cid) {
@@ -815,7 +818,6 @@ const importCommand: Command = {
           'https://dweb.link',
         ];
 
-        let fetched = false;
         for (const gateway of gateways) {
           try {
             spinner.setText(`Fetching from ${gateway}...`);
@@ -825,8 +827,7 @@ const importCommand: Command = {
             });
 
             if (response.ok) {
-              importData = await response.json() as typeof importData;
-              fetched = true;
+              importData = await response.json() as ImportDataType;
               break;
             }
           } catch {
@@ -834,7 +835,7 @@ const importCommand: Command = {
           }
         }
 
-        if (!fetched) {
+        if (!importData) {
           spinner.fail('Could not fetch from any IPFS gateway');
           return { success: false, exitCode: 1 };
         }
@@ -843,7 +844,12 @@ const importCommand: Command = {
           spinner.fail(`File not found: ${file}`);
           return { success: false, exitCode: 1 };
         }
-        importData = JSON.parse(fs.readFileSync(file, 'utf8'));
+        importData = JSON.parse(fs.readFileSync(file, 'utf8')) as ImportDataType;
+      }
+
+      if (!importData) {
+        spinner.fail('No import data available');
+        return { success: false, exitCode: 1 };
       }
 
       // Verify signature if present and requested
