@@ -67,7 +67,7 @@ interface MinCutWasmModule {
  * MinCut Bridge Implementation
  */
 export class MinCutBridge implements IMinCutBridge {
-  private wasmModule: MinCutWasmModule | null = null;
+  private _wasmModule: MinCutWasmModule | null = null;
   private initialized = false;
 
   /**
