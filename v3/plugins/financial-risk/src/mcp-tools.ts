@@ -289,7 +289,7 @@ async function anomalyDetectHandler(
       return errorResult(`Invalid input: ${validation.error.message}`);
     }
 
-    const { transactions, sensitivity, context: anomalyContext } = validation.data;
+    const { transactions, sensitivity } = validation.data;
 
     // Initialize bridge
     const sparseBridge = context?.bridge?.sparse ?? new FinancialSparseBridge();
