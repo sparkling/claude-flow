@@ -1,5 +1,9 @@
 # @claude-flow/plugin-legal-contracts
 
+[![npm version](https://img.shields.io/npm/v/@claude-flow/plugin-legal-contracts.svg)](https://www.npmjs.com/package/@claude-flow/plugin-legal-contracts)
+[![npm downloads](https://img.shields.io/npm/dm/@claude-flow/plugin-legal-contracts.svg)](https://www.npmjs.com/package/@claude-flow/plugin-legal-contracts)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A comprehensive legal contract analysis plugin combining hyperbolic embeddings for legal ontology navigation with fast vector search for clause similarity. The plugin enables automated clause extraction, risk scoring, obligation tracking, and regulatory compliance checking while maintaining attorney-client privilege through on-device processing.
 
 ## Features
