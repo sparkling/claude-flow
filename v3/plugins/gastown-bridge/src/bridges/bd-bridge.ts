@@ -354,6 +354,25 @@ export class BdBridge {
   private logger: BdLogger;
   private initialized = false;
 
+  /** Commands that can be cached (read-only, no side effects) */
+  private static readonly CACHEABLE_COMMANDS = new Set([
+    'list',
+    'get',
+    'search',
+    'stats',
+    'version',
+    'help',
+    'config',
+  ]);
+
+  /** Commands that should use longer cache (static data) */
+  private static readonly STATIC_COMMANDS = new Set([
+    'version',
+    'help',
+    'stats',
+    'config',
+  ]);
+
   constructor(config?: BdBridgeConfig, logger?: BdLogger) {
     this.config = {
       bdPath: config?.bdPath ?? 'bd',
