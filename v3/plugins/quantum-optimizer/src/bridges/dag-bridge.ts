@@ -107,7 +107,8 @@ export class DagBridge {
     this._status = 'loading';
 
     try {
-      const wasmModule = await import('@ruvector/dag-wasm').catch(() => null);
+      // Dynamic import - module may not be installed
+      const wasmModule = await import(/* webpackIgnore: true */ '@ruvector/dag-wasm' as string).catch(() => null);
 
       if (wasmModule) {
         this._module = wasmModule as unknown as DagWasmModule;
