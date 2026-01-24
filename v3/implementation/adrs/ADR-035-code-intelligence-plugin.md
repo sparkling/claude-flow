@@ -228,13 +228,22 @@ Learn code patterns from repository history.
 
 ## Performance Targets
 
-| Metric | Target |
-|--------|--------|
-| Semantic code search | <100ms for 1M LOC |
-| Architecture analysis | <10s for 100K LOC |
-| Refactor impact | <5s for single change |
-| Module splitting | <30s for 50K LOC |
-| Pattern learning | <2min for 1000 commits |
+| Metric | Target | Baseline (Traditional) | Improvement |
+|--------|--------|------------------------|-------------|
+| Semantic code search | <100ms for 1M LOC | ~2s (ripgrep regex) | 20x |
+| Architecture analysis | <10s for 100K LOC | ~5min (manual review) | 30x |
+| Refactor impact | <5s for single change | ~30min (IDE analysis) | 360x |
+| Module splitting | <30s for 50K LOC | ~2hr (architect review) | 240x |
+| Pattern learning | <2min for 1000 commits | N/A (not possible) | Novel |
+
+## Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| False positive suggestions | Medium | Low | Confidence thresholds, human approval |
+| Language parser gaps | Medium | Medium | Tier-based support, graceful degradation |
+| Large repo indexing time | Medium | Low | Incremental indexing, background processing |
+| Outdated patterns | Low | Low | Continuous learning from recent commits |
 
 ## IDE Integration
 
