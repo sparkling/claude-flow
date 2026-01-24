@@ -831,6 +831,30 @@ export class GtBridge {
   getConfig(): Readonly<Required<GtBridgeConfig>> {
     return { ...this.config };
   }
+
+  /**
+   * Get cache statistics for performance monitoring
+   */
+  getCacheStats(): {
+    resultCache: { entries: number; sizeBytes: number };
+    staticCache: { entries: number; sizeBytes: number };
+    parsedCache: { entries: number; sizeBytes: number };
+  } {
+    return {
+      resultCache: resultCache.stats(),
+      staticCache: staticCache.stats(),
+      parsedCache: parsedCache.stats(),
+    };
+  }
+
+  /**
+   * Clear all caches (useful for testing or memory pressure)
+   */
+  clearCaches(): void {
+    resultCache.clear();
+    staticCache.clear();
+    parsedCache.clear();
+  }
 }
 
 /**
