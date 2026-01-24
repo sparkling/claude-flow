@@ -1361,9 +1361,13 @@ export class GasTownBridgePlugin extends EventEmitter implements IPlugin {
       },
       async getConvoyStatus(convoyId, _detailed) {
         if (!tracker) throw new GasTownError('ConvoyTracker not initialized', GasTownErrorCode.NOT_INITIALIZED);
-        const convoy = await tracker.getStatus(convoyId);
-        // Return the status enum value instead of the full convoy
-        return convoy.status;
+        if (convoyId) {
+          const convoy = await tracker.getStatus(convoyId);
+          // Return array with single convoy
+          return [convoy];
+        }
+        // If no convoyId, return all convoys
+        return tracker.listConvoys();
       },
       async trackConvoy(convoyId: string, action: 'add' | 'remove', issues: string[]) {
         if (!tracker) throw new GasTownError('ConvoyTracker not initialized', GasTownErrorCode.NOT_INITIALIZED);
