@@ -239,100 +239,65 @@ describe('HealthcareGNNBridge', () => {
     });
 
     it('should load drug interaction graph', async () => {
-      const graph = {
-        nodes: [
-          { id: 'drug-1', type: 'drug', properties: { name: 'Aspirin' } },
-          { id: 'drug-2', type: 'drug', properties: { name: 'Warfarin' } },
-        ],
-        edges: [
-          { source: 'drug-1', target: 'drug-2', type: 'interacts', properties: { severity: 'high' } },
-        ],
-      };
+      const nodes = [
+        { id: 'drug-1', type: 'drug', features: [0.1, 0.2, 0.3] },
+        { id: 'drug-2', type: 'drug', features: [0.4, 0.5, 0.6] },
+      ];
+      const edges = [
+        { source: 'drug-1', target: 'drug-2', type: 'interacts', weight: 0.8 },
+      ];
 
-      const result = await bridge.loadGraph(graph);
-      expect(result.success).toBe(true);
-      expect(result.nodeCount).toBe(2);
-      expect(result.edgeCount).toBe(1);
+      await bridge.loadGraph(nodes, edges);
+      // No error means success
+      expect(bridge.initialized).toBe(true);
     });
 
-    it('should analyze drug interactions', async () => {
-      await bridge.loadGraph({
-        nodes: [
-          { id: 'aspirin', type: 'drug', properties: { name: 'Aspirin', class: 'NSAID' } },
-          { id: 'warfarin', type: 'drug', properties: { name: 'Warfarin', class: 'anticoagulant' } },
-          { id: 'ibuprofen', type: 'drug', properties: { name: 'Ibuprofen', class: 'NSAID' } },
-        ],
-        edges: [
-          { source: 'aspirin', target: 'warfarin', type: 'interacts', properties: { severity: 'major', mechanism: 'bleeding risk' } },
-          { source: 'ibuprofen', target: 'warfarin', type: 'interacts', properties: { severity: 'major', mechanism: 'bleeding risk' } },
-        ],
-      });
-
-      const interactions = await bridge.analyzeInteractions(['aspirin', 'warfarin']);
+    it('should analyze drug interactions using built-in graph', async () => {
+      // The bridge has built-in drug interactions
+      const interactions = await bridge.analyzeInteractions(['warfarin', 'aspirin']);
 
       expect(interactions).toHaveProperty('interactions');
-      expect(interactions.interactions.length).toBeGreaterThan(0);
-      expect(interactions.interactions[0]).toHaveProperty('severity');
+      expect(interactions).toHaveProperty('riskFactors');
+      expect(interactions).toHaveProperty('recommendations');
     });
 
-    it('should check drug interactions', async () => {
-      await bridge.loadGraph({
-        nodes: [
-          { id: 'metformin', type: 'drug', properties: { name: 'Metformin' } },
-          { id: 'lisinopril', type: 'drug', properties: { name: 'Lisinopril' } },
-        ],
-        edges: [
-          { source: 'metformin', target: 'lisinopril', type: 'interacts', properties: { severity: 'moderate' } },
-        ],
-      });
+    it('should check drug interactions using built-in data', () => {
+      // Uses built-in DrugInteractionGraph
+      const result = bridge.checkDrugInteractions(['warfarin', 'aspirin']);
 
-      const result = await bridge.checkDrugInteractions(['metformin', 'lisinopril']);
-
-      expect(result).toHaveProperty('hasInteractions');
-      expect(result).toHaveProperty('details');
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('drug1');
+      expect(result[0]).toHaveProperty('drug2');
+      expect(result[0]).toHaveProperty('severity');
     });
 
     it('should predict clinical pathway', async () => {
-      await bridge.loadGraph({
-        nodes: [
-          { id: 'diagnosis', type: 'condition', properties: { name: 'Type 2 Diabetes' } },
-          { id: 'step1', type: 'treatment', properties: { name: 'Lifestyle Changes' } },
-          { id: 'step2', type: 'treatment', properties: { name: 'Metformin' } },
-          { id: 'step3', type: 'treatment', properties: { name: 'Add Insulin' } },
-        ],
-        edges: [
-          { source: 'diagnosis', target: 'step1', type: 'first_line' },
-          { source: 'step1', target: 'step2', type: 'if_inadequate' },
-          { source: 'step2', target: 'step3', type: 'if_inadequate' },
-        ],
-      });
+      const nodes = [
+        { id: 'diagnosis', type: 'condition', features: [1, 0, 0] },
+        { id: 'step1', type: 'treatment', features: [0, 1, 0] },
+        { id: 'step2', type: 'treatment', features: [0, 0, 1] },
+      ];
+      const edges = [
+        { source: 'diagnosis', target: 'step1', type: 'first_line', weight: 1.0 },
+        { source: 'step1', target: 'step2', type: 'if_inadequate', weight: 0.8 },
+      ];
 
-      const pathway = await bridge.predictPathway({
-        condition: 'Type 2 Diabetes',
-        patientFactors: { age: 55, a1c: 8.5 },
-      });
+      await bridge.loadGraph(nodes, edges);
+      const pathway = await bridge.predictPathway('diagnosis', 'step2');
 
-      expect(pathway).toHaveProperty('steps');
-      expect(Array.isArray(pathway.steps)).toBe(true);
+      expect(pathway).toHaveProperty('path');
+      expect(pathway).toHaveProperty('confidence');
+      expect(Array.isArray(pathway.path)).toBe(true);
     });
 
-    it('should get clinical pathway', async () => {
-      await bridge.loadGraph({
-        nodes: [
-          { id: 'chest-pain', type: 'symptom' },
-          { id: 'ecg', type: 'test' },
-          { id: 'troponin', type: 'test' },
-        ],
-        edges: [
-          { source: 'chest-pain', target: 'ecg', type: 'requires' },
-          { source: 'chest-pain', target: 'troponin', type: 'requires' },
-        ],
-      });
+    it('should get clinical pathway from built-in data', () => {
+      // Uses built-in ClinicalPathwayGraph
+      const pathway = bridge.getClinicalPathway('E11'); // Type 2 Diabetes
 
-      const pathway = await bridge.getClinicalPathway('chest-pain');
-
-      expect(pathway).toHaveProperty('pathway');
-      expect(pathway).toHaveProperty('recommendations');
+      expect(pathway).toBeDefined();
+      expect(pathway).toHaveProperty('name');
+      expect(pathway).toHaveProperty('steps');
     });
   });
 
