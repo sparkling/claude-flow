@@ -494,29 +494,53 @@ const statusCommand: Command = {
       if (verbose) {
         output.writeln();
         output.writeln(output.bold('Detailed Metrics'));
+
+        const detailedData = [
+          { metric: 'Trajectories Recorded', value: String(stats.trajectoriesRecorded) },
+          { metric: 'Patterns Learned', value: String(stats.patternsLearned) },
+          { metric: 'HNSW Dimensions', value: String(hnswStatus.dimensions) },
+          { metric: 'SONA Adaptation (avg)', value: `${(adaptBench.avgMs * 1000).toFixed(2)}μs` },
+          { metric: 'SONA Adaptation (max)', value: `${(adaptBench.maxMs * 1000).toFixed(2)}μs` },
+          { metric: 'Target Met (<0.05ms)', value: adaptBench.targetMet ? output.success('Yes') : output.warning('No') },
+          {
+            metric: 'Last Adaptation',
+            value: stats.lastAdaptation
+              ? new Date(stats.lastAdaptation).toLocaleTimeString()
+              : 'Never',
+          },
+        ];
+
+        // Add RuVector WASM metrics if initialized
+        if (ruvectorStats.initialized) {
+          detailedData.push(
+            { metric: 'RuVector Adaptations', value: String(ruvectorStats.totalAdaptations) },
+            { metric: 'RuVector Forwards', value: String(ruvectorStats.totalForwards) },
+          );
+          if (ruvectorStats.microLoraStats) {
+            detailedData.push(
+              { metric: 'MicroLoRA Delta Norm', value: ruvectorStats.microLoraStats.deltaNorm.toFixed(6) },
+              { metric: 'MicroLoRA Adapt Count', value: String(ruvectorStats.microLoraStats.adaptCount) },
+            );
+          }
+          if (sonaAvailable && ruvectorStats.sonaStats?.stats) {
+            const sonaStats = ruvectorStats.sonaStats.stats as Record<string, unknown>;
+            detailedData.push(
+              { metric: 'SONA Patterns Stored', value: String(sonaStats.patterns_stored || 0) },
+              { metric: 'SONA EWC Tasks', value: String(sonaStats.ewc_tasks || 0) },
+            );
+          }
+        }
+
         output.printTable({
           columns: [
             { key: 'metric', header: 'Metric', width: 28 },
             { key: 'value', header: 'Value', width: 20 },
           ],
-          data: [
-            { metric: 'Trajectories Recorded', value: String(stats.trajectoriesRecorded) },
-            { metric: 'Patterns Learned', value: String(stats.patternsLearned) },
-            { metric: 'HNSW Dimensions', value: String(hnswStatus.dimensions) },
-            { metric: 'SONA Adaptation (avg)', value: `${(adaptBench.avgMs * 1000).toFixed(2)}μs` },
-            { metric: 'SONA Adaptation (max)', value: `${(adaptBench.maxMs * 1000).toFixed(2)}μs` },
-            { metric: 'Target Met (<0.05ms)', value: adaptBench.targetMet ? output.success('Yes') : output.warning('No') },
-            {
-              metric: 'Last Adaptation',
-              value: stats.lastAdaptation
-                ? new Date(stats.lastAdaptation).toLocaleTimeString()
-                : 'Never',
-            },
-          ],
+          data: detailedData,
         });
       }
 
-      return { success: true, data: { stats, hnswStatus, adaptBench, modelInfo } };
+      return { success: true, data: { stats, hnswStatus, adaptBench, modelInfo, ruvectorStats } };
     } catch (error) {
       spinner.fail('Failed to check neural systems');
       output.printError(error instanceof Error ? error.message : String(error));
