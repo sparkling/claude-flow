@@ -1564,7 +1564,8 @@ export class GasTownBridgePlugin extends EventEmitter implements IPlugin {
         if (this.config.gastown?.enableBeadsSync && this.syncBridge) {
           this.logger.info('Beads sync triggered on session start');
           try {
-            await this.syncBridge.sync();
+            // Use syncBidirectional for full sync
+            await this.syncBridge.syncBidirectional();
           } catch (error) {
             this.logger.warn('Beads sync failed', {
               error: error instanceof Error ? error.message : String(error),
