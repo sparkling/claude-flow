@@ -257,6 +257,115 @@ Raw Traces --> Sparse Encoding --> GNN Analysis --> Pattern Match --> Recommenda
 | Bundle analysis | <10s for 10MB bundle | ~1min (webpack-bundle-analyzer) | 6x |
 | Config optimization | <1min convergence | ~days (manual tuning) | 1440x+ |
 
+## Security Considerations
+
+### Input Validation (CRITICAL)
+
+All MCP tool inputs MUST be validated using Zod schemas:
+
+```typescript
+// perf/bottleneck-detect input validation
+const BottleneckDetectSchema = z.object({
+  traceData: z.object({
+    format: z.enum(['otlp', 'chrome_devtools', 'jaeger', 'zipkin']),
+    spans: z.array(z.unknown()).max(1_000_000), // Max 1M spans
+    metrics: z.record(z.string(), z.unknown()).optional()
+  }),
+  analysisScope: z.array(z.enum(['cpu', 'memory', 'io', 'network', 'database', 'render', 'all'])).default(['all']),
+  threshold: z.object({
+    latencyP95: z.number().min(0).max(86400000).optional(), // Max 24 hours in ms
+    throughput: z.number().min(0).optional(),
+    errorRate: z.number().min(0).max(1).optional()
+  }).optional()
+});
+
+// perf/memory-analyze input validation
+const MemoryAnalyzeSchema = z.object({
+  heapSnapshot: z.string().max(500).optional(),
+  timeline: z.array(z.unknown()).max(100000).optional(),
+  analysis: z.array(z.enum([
+    'leak_detection', 'retention_analysis', 'allocation_hotspots', 'gc_pressure'
+  ])).optional(),
+  compareBaseline: z.string().max(500).optional()
+});
+
+// perf/query-optimize input validation
+const QueryOptimizeSchema = z.object({
+  queries: z.array(z.object({
+    sql: z.string().max(10000), // Max 10KB query
+    duration: z.number().min(0).max(86400000),
+    stackTrace: z.string().max(50000).optional(),
+    resultSize: z.number().int().min(0).optional()
+  })).min(1).max(10000),
+  patterns: z.array(z.enum(['n_plus_1', 'missing_index', 'full_scan', 'large_result', 'slow_join'])).optional(),
+  suggestIndexes: z.boolean().default(true)
+});
+```
+
+### WASM Security Constraints
+
+| Constraint | Value | Rationale |
+|------------|-------|-----------|
+| Memory Limit | 2GB max | Handle large heap snapshots |
+| CPU Time Limit | 300 seconds for analysis | Allow thorough analysis |
+| No Network Access | Enforced by WASM sandbox | Prevent trace data exfiltration |
+| No Process Access | Cannot read other process memory | Isolation from production |
+| Read-Only Traces | Analysis only, no modification | Data integrity |
+
+### Sensitive Data in Traces (HIGH)
+
+```typescript
+// Trace data may contain sensitive information
+// MUST sanitize before processing
+
+const SENSITIVE_TRACE_PATTERNS = [
+  /password[=:][^\s&]+/gi,
+  /token[=:][^\s&]+/gi,
+  /authorization:\s*bearer\s+[^\s]+/gi,
+  /cookie:\s*[^\n]+/gi,
+  /session[_-]?id[=:][^\s&]+/gi
+];
+
+function sanitizeTraceData(trace: TraceData): TraceData {
+  const sanitized = JSON.parse(JSON.stringify(trace));
+
+  // Sanitize span attributes
+  for (const span of sanitized.spans) {
+    for (const [key, value] of Object.entries(span.attributes || {})) {
+      if (typeof value === 'string') {
+        span.attributes[key] = sanitizeString(value);
+      }
+    }
+  }
+
+  return sanitized;
+}
+```
+
+### Identified Security Risks
+
+| Risk ID | Severity | Description | Mitigation |
+|---------|----------|-------------|------------|
+| PERF-SEC-001 | **HIGH** | Credentials in trace/query data | Automatic sanitization, pattern detection |
+| PERF-SEC-002 | **HIGH** | SQL injection via query analysis | Parse-only, never execute queries |
+| PERF-SEC-003 | **MEDIUM** | DoS via malformed heap snapshots | Size limits, format validation |
+| PERF-SEC-004 | **MEDIUM** | Path traversal in bundle stats paths | Path validation |
+| PERF-SEC-005 | **LOW** | Information leakage via performance patterns | Access controls, audit logging |
+
+### Query Analysis Safety
+
+```typescript
+// CRITICAL: Query analysis MUST NOT execute queries
+
+// BAD - dangerous
+const result = await db.query(userProvidedSql);
+
+// GOOD - parse and analyze only
+const parsedQuery = sqlParser.parse(userProvidedSql);
+const analysis = analyzeQueryPlan(parsedQuery);
+return analysis; // Never execute
+```
+
 ## Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
