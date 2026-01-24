@@ -19,6 +19,13 @@ import type {
   CriticalPathResult,
 } from './types.js';
 
+import {
+  LRUCache,
+  FormulaASTCache,
+  BatchDeduplicator,
+  ModulePreloader,
+} from './cache.js';
+
 // ============================================================================
 // Types
 // ============================================================================
