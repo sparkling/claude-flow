@@ -2706,16 +2706,27 @@ npx claude-flow@v3alpha transfer-store publish --input ./my-patterns.json --cate
 
 ### Plugin Store
 
-Discover and install community plugins from the **live IPFS registry** with 19 official plugins.
+Discover and install community plugins from the **live IPFS registry** with 19 official plugins and **live ratings** via Cloud Function.
 
 | Command | Description |
 |---------|-------------|
+| `plugins list` | List available plugins with live ratings |
+| `plugins rate` | Rate a plugin (1-5 stars) |
 | `transfer plugin-search` | Search plugins by type or category |
 | `transfer plugin-info` | Get plugin details and dependencies |
 | `transfer plugin-featured` | Browse featured plugins |
 | `transfer plugin-official` | List official/verified plugins |
 
 ```bash
+# List plugins with live ratings from Cloud Function
+npx claude-flow@v3alpha plugins list
+
+# Filter by type
+npx claude-flow@v3alpha plugins list --type integration
+
+# Rate a plugin
+npx claude-flow@v3alpha plugins rate --name @claude-flow/embeddings --rating 5
+
 # Search for MCP tool plugins
 npx claude-flow@v3alpha transfer plugin-search --type "mcp-tool" --verified
 
