@@ -32,6 +32,7 @@ import type {
   BeadGraph,
   FormulaType,
   CookedFormula,
+  Step,
 } from './types.js';
 
 import {
