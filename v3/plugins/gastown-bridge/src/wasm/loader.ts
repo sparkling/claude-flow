@@ -337,5 +337,4 @@ export function getWasmMemoryStats(): {
   };
 }
 
-// Re-export types
-export type { WasmLoadOptions };
+// WasmLoadOptions is already exported above
