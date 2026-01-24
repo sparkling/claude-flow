@@ -811,7 +811,7 @@ function findDeadCode(graph: DependencyGraph): import('./types.js').DeadCodeFind
   return deadCode;
 }
 
-function analyzeAPISurface(graph: DependencyGraph): import('./types.js').APISurfaceElement[] {
+function analyzeAPISurface(_graph: DependencyGraph): import('./types.js').APISurfaceElement[] {
   return [];
 }
 
