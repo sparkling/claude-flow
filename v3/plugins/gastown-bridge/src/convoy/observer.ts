@@ -289,27 +289,95 @@ export class ConvoyObserver extends EventEmitter {
     // Stop existing watcher if any
     this.stopWatching(convoyId);
 
-    // Create polling timer
-    const timer = setInterval(async () => {
-      await this.pollConvoy(convoyId, callback);
-    }, this.config.pollInterval);
+    const initialInterval = this.config.pollInterval;
+
+    // Create initial polling timer (will be rescheduled with backoff)
+    const scheduleNextPoll = (interval: number): NodeJS.Timeout => {
+      return setTimeout(async () => {
+        await this.pollConvoyWithBackoff(convoyId, callback);
+      }, interval);
+    };
+
+    const timer = scheduleNextPoll(initialInterval);
 
     this.watchers.set(convoyId, {
       timer,
       callback,
       attempts: 0,
+      currentInterval: initialInterval,
+      lastState: null,
     });
 
-    // Immediate first check
-    this.pollConvoy(convoyId, callback);
+    // Create debounced progress emitter for this convoy
+    this.progressEmitters.set(
+      convoyId,
+      new DebouncedEmitter<ConvoyProgress>(
+        (progress) => this.emit('progress', convoyId, progress),
+        this.config.progressDebounceMs
+      )
+    );
 
-    this.logger.info('Started watching convoy', { convoyId });
+    // Immediate first check
+    this.pollConvoyWithBackoff(convoyId, callback);
+
+    this.logger.info('Started watching convoy', { convoyId, interval: initialInterval });
 
     return {
       convoyId,
       stop: () => this.stopWatching(convoyId),
       isActive: () => this.watchers.has(convoyId),
     };
+  }
+
+  /**
+   * Batch subscribe to multiple convoys
+   * Subscriptions are batched and flushed together for efficiency
+   *
+   * @param convoyId - Convoy ID to watch
+   * @param callback - Callback for completion status
+   */
+  batchSubscribe(convoyId: string, callback: CompletionCallback): void {
+    if (!this.pendingSubscriptions.has(convoyId)) {
+      this.pendingSubscriptions.set(convoyId, new Set());
+    }
+    this.pendingSubscriptions.get(convoyId)!.add(callback);
+
+    // Flush after a short delay to batch multiple subscriptions
+    if (!this.subscriptionFlushTimer) {
+      this.subscriptionFlushTimer = setTimeout(() => {
+        this.flushSubscriptions();
+      }, 50); // 50ms batching window
+    }
+  }
+
+  /**
+   * Flush pending subscriptions
+   */
+  private flushSubscriptions(): void {
+    this.subscriptionFlushTimer = null;
+
+    for (const [convoyId, callbacks] of this.pendingSubscriptions) {
+      // Create a merged callback that calls all registered callbacks
+      const mergedCallback: CompletionCallback = (convoy, allComplete) => {
+        for (const cb of callbacks) {
+          try {
+            cb(convoy, allComplete);
+          } catch (error) {
+            this.logger.error('Subscription callback error', {
+              convoyId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      };
+
+      this.watch(convoyId, mergedCallback);
+    }
+
+    this.pendingSubscriptions.clear();
+    this.logger.debug('Flushed subscription batch', {
+      convoys: this.pendingSubscriptions.size,
+    });
   }
 
   /**
