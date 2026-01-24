@@ -338,6 +338,16 @@ Executive Control
 ### Neutral
 - Can operate transparently or with explicit control
 
+## Related ADRs
+
+| ADR | Relationship |
+|-----|--------------|
+| ADR-004: Plugin Architecture | Foundation - Defines plugin structure |
+| ADR-017: RuVector Integration | Dependency - Provides WASM packages |
+| ADR-038: Neural Coordination | Related - Multi-agent cognitive layer |
+| ADR-037: Performance Optimizer | Related - Cognitive load metrics |
+| ADR-041: Hyperbolic Reasoning | Related - Concept hierarchy in memory |
+
 ## References
 
 - Baddeley's Working Memory Model: https://www.simplypsychology.org/working-memory.html
