@@ -19,6 +19,7 @@ import {
   type PluginSearchOptions,
 } from '../plugins/store/index.js';
 import { getPluginManager, type InstalledPlugin } from '../plugins/manager.js';
+import { getBulkRatings } from '../services/registry-api.js';
 
 // List subcommand - Now uses IPFS-based registry
 const listCommand: Command = {
