@@ -16,6 +16,11 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative)](https://opensource.org/licenses/MIT)
 [![RuVector](https://img.shields.io/npm/v/ruvector?style=for-the-badge&logo=rust&color=orange&label=RuVector)](https://www.npmjs.com/package/ruvector)
 [![Agentic-Flow](https://img.shields.io/npm/v/agentic-flow?style=for-the-badge&logo=typescript&color=3178c6&label=Agentic-Flow)](https://www.npmjs.com/package/agentic-flow)
+[![Reddit](https://img.shields.io/reddit/subreddit-subscribers/aipromptprogramming?style=for-the-badge&logo=reddit&color=FF4500&label=r/aipromptprogramming)](https://www.reddit.com/r/aipromptprogramming/)
+[![Follow @ruv](https://img.shields.io/badge/Follow%20%40ruv-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/ruv)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin)](https://www.linkedin.com/in/reuvencohen/)
+[![YouTube](https://img.shields.io/badge/YouTube-Subscribe-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@ReuvenCohen)
+[![Crates.io](https://img.shields.io/badge/crates.io-ruvnet-E6732E?style=for-the-badge&logo=rust&logoColor=white)](https://crates.io/users/ruvnet)
 
 **Production-ready multi-agent AI orchestration for Claude Code**
 
@@ -148,8 +153,8 @@ npx claude-flow@v3alpha hooks intelligence --status
 
 ### Get Started Fast
 
-``` 
-npx claude-flow@v3alpha init 
+```
+npx claude-flow@latest init
 ```
 
 ---
@@ -453,20 +458,20 @@ Add claude-flow as an MCP server for seamless integration:
 
 ```bash
 # Add claude-flow MCP server to Claude Code
-claude mcp add claude-flow -- npx -y claude-flow@v3alpha
+claude mcp add claude-flow -- npx -y claude-flow@latest mcp start
 
 # Verify installation
 claude mcp list
 ```
 
-Once added, Claude Code can use all 175+ claude-flow tools directly:
+Once added, Claude Code can use all 175+ claude-flow MCP tools directly:
 - `swarm_init` - Initialize agent swarms
 - `agent_spawn` - Spawn specialized agents
 - `memory_search` - Search patterns with HNSW (150x faster)
 - `hooks_route` - Intelligent task routing
 - And 170+ more tools...
 
-
+<details>
 <summary>🆚 <strong>Why Claude-Flow v3?</strong></summary>
 
 Claude-Flow v3 introduces **self-learning neural capabilities** that no other agent orchestration framework offers. While competitors require manual agent configuration and static routing, Claude-Flow learns from every task execution, prevents catastrophic forgetting of successful patterns, and intelligently routes work to specialized experts.
@@ -524,6 +529,8 @@ Claude-Flow v3 introduces **self-learning neural capabilities** that no other ag
 | **Input Validation** | ✅ Zod + Path security | ⛔ | ⛔ | ⛔ | ⛔ |
 
 <sub>*Comparison updated January 23, 2026*</sub>
+
+</details>
 
 <details>
 <summary>🚀 <strong>Key Differentiators</strong> — Self-learning, memory optimization, fault tolerance</summary>
@@ -1263,6 +1270,7 @@ Install these optional plugins to extend Claude Flow capabilities:
 |--------|---------|-------------|-----------------|
 | **@claude-flow/plugin-agentic-qe** | 3.0.0-alpha.2 | Quality Engineering with 58 AI agents across 12 DDD contexts. TDD, coverage analysis, security scanning, chaos engineering, accessibility testing. | `npm install @claude-flow/plugin-agentic-qe` |
 | **@claude-flow/plugin-prime-radiant** | 0.1.4 | Mathematical AI interpretability with 6 engines: sheaf cohomology, spectral analysis, causal inference, quantum topology, category theory, HoTT proofs. | `npm install @claude-flow/plugin-prime-radiant` |
+| **@claude-flow/plugin-gastown-bridge** | 0.1.0 | Gas Town orchestrator integration with WASM-accelerated formula parsing (352x faster), Beads sync, convoy management, and graph analysis. 20 MCP tools. | `npx claude-flow@latest plugins install -n @claude-flow/plugin-gastown-bridge` |
 
 #### 🏥 Domain-Specific Plugins
 
@@ -1321,6 +1329,9 @@ npm install @claude-flow/plugin-agentic-qe
 
 # Install AI Interpretability plugin
 npm install @claude-flow/plugin-prime-radiant
+
+# Install Gas Town Bridge plugin (WASM-accelerated orchestration)
+npx claude-flow@latest plugins install -n @claude-flow/plugin-gastown-bridge
 
 # Install domain-specific plugins
 npm install @claude-flow/plugin-healthcare-clinical
