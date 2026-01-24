@@ -657,7 +657,7 @@ async function complianceCheckHandler(
   }
 }
 
-function checkBaselIII(entity: string) {
+function checkBaselIII(_entity: string) {
   // Simulated Basel III metrics
   return {
     cet1Ratio: 0.12 + Math.random() * 0.05,
