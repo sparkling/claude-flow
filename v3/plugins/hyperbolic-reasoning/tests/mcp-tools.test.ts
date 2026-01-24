@@ -411,7 +411,7 @@ describe('hyperbolic_entailment_graph handler', () => {
     expect(result.isError).toBeUndefined();
   });
 
-  it('should return error for query on non-existent graph', async () => {
+  it('should handle query action with message about pre-built graph', async () => {
     const input = {
       action: 'query',
       graphId: 'non-existent-graph',
@@ -422,7 +422,10 @@ describe('hyperbolic_entailment_graph handler', () => {
     };
 
     const result = await tool.handler(input);
-    expect(result.isError).toBe(true);
+    // Current implementation returns success with a message about needing pre-built graph
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text!);
+    expect(parsed).toHaveProperty('message');
   });
 
   it('should handle prune action', async () => {
