@@ -452,9 +452,9 @@ class SecurePluginContext implements PluginContext {
 - [x] State persistence
 
 ### Phase 3: Advanced Features (Week 3)
-- [ ] Hot reload support
-- [ ] Conflict resolution
-- [ ] Permission model
+- [x] Hot reload support (in EnhancedPluginRegistry)
+- [x] Conflict resolution (namespace strategy)
+- [ ] Permission model (types defined, enforcement TBD)
 - [ ] Worker thread isolation
 
 ### Phase 4: Testing & Documentation (Week 4)
@@ -462,6 +462,13 @@ class SecurePluginContext implements PluginContext {
 - [x] Integration tests
 - [x] Performance benchmarks
 - [x] Migration guide
+
+### Phase 5: CLI Integration (2026-01-24)
+- [x] PluginManager for CLI (real npm installation)
+- [x] Persist to `.claude-flow/plugins/installed.json`
+- [x] Install, uninstall, upgrade, toggle commands
+- [x] Local plugin installation support
+- [x] Discovery service with npm fallback (IPFS demo mode)
 
 ## Consequences
 
