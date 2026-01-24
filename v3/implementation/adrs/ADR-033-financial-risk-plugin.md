@@ -281,6 +281,15 @@ Run stress testing scenarios on portfolios.
 ### Neutral
 - Can operate in shadow mode alongside existing systems
 
+## Related ADRs
+
+| ADR | Relationship |
+|-----|--------------|
+| ADR-004: Plugin Architecture | Foundation - Defines plugin structure |
+| ADR-017: RuVector Integration | Dependency - Provides WASM packages |
+| ADR-040: Quantum Optimizer | Related - Portfolio optimization algorithms |
+| ADR-038: Neural Coordination | Related - Multi-agent trading simulations |
+
 ## References
 
 - Basel III Framework: https://www.bis.org/basel_framework/
