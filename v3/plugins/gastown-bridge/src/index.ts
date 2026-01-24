@@ -1261,7 +1261,7 @@ export class GasTownBridgePlugin extends EventEmitter implements IPlugin {
       },
       config: {
         townRoot: gasTownConfig.townRoot ?? '',
-        allowedRigs: gasTownConfig.allowedRigs ?? [],
+        allowedRigs: [],  // Not part of GasTownConfig type - use empty array
         maxBeadsLimit: 100,
         maskSecrets: true,
         enableWasm: this.wasmInitialized,
