@@ -1277,7 +1277,7 @@ Install these optional plugins to extend Claude Flow capabilities:
 
 | Plugin | Version | Description | Install Command |
 |--------|---------|-------------|-----------------|
-| **@claude-flow/teammate-plugin** | 1.0.0-alpha.1 | Native TeammateTool integration for Claude Code v2.1.19+. Multi-agent team orchestration with plan approval workflows, delegation, messaging, and BMSSP-optimized topology routing. 21 MCP tools. | `npx @claude-flow/cli@latest plugins install teammate-plugin` |
+| **@claude-flow/teammate-plugin** | 1.0.0-alpha.1 | Native TeammateTool integration for Claude Code v2.1.19+. Multi-agent team orchestration with plan approval workflows, delegation, messaging, and BMSSP-optimized topology routing. 21 MCP tools. | `npx @claude-flow/cli@latest plugins install -n @claude-flow/teammate-plugin` |
 
 **Teammate Plugin Features:**
 - Native bridge to Claude Code's TeammateTool (v2.1.19+)
