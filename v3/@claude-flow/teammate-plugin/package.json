@@ -17,6 +17,14 @@
     "./mcp": {
       "import": "./dist/mcp-tools.js",
       "types": "./dist/mcp-tools.d.ts"
+    },
+    "./topology": {
+      "import": "./dist/topology-optimizer.js",
+      "types": "./dist/topology-optimizer.d.ts"
+    },
+    "./semantic": {
+      "import": "./dist/semantic-router.js",
+      "types": "./dist/semantic-router.d.ts"
     }
   },
   "files": [
@@ -65,7 +73,8 @@
     }
   },
   "dependencies": {
-    "eventemitter3": "^5.0.1"
+    "eventemitter3": "^5.0.1",
+    "@ruvnet/bmssp": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

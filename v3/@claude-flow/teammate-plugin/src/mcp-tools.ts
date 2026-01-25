@@ -1,7 +1,9 @@
 /**
  * MCP Tools for TeammateTool Integration
  *
- * Exposes 16 MCP tools for multi-agent orchestration via Claude Code.
+ * Exposes 21 MCP tools for multi-agent orchestration via Claude Code:
+ * - 16 core TeammateTool integration tools
+ * - 5 BMSSP optimization tools (10-15x faster with WASM)
  *
  * @module @claude-flow/teammate-plugin/mcp
  * @version 1.0.0-alpha.1
@@ -425,6 +427,105 @@ export const TEAMMATE_MCP_TOOLS: MCPTool[] = [
       required: ['teamName'],
     },
   },
+
+  // ==========================================================================
+  // BMSSP Optimization Tools (10-15x faster with WASM)
+  // ==========================================================================
+  {
+    name: 'teammate_enable_optimizers',
+    description:
+      'Enable BMSSP-powered optimization for team topology and task routing. ' +
+      'Uses WebAssembly for 10-15x faster pathfinding and semantic matching.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+
+  {
+    name: 'teammate_find_optimal_path',
+    description:
+      'Find optimal message routing path between two teammates using BMSSP graph algorithms.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        teamName: { type: 'string', description: 'Team name' },
+        fromId: { type: 'string', description: 'Source teammate ID' },
+        toId: { type: 'string', description: 'Target teammate ID' },
+      },
+      required: ['teamName', 'fromId', 'toId'],
+    },
+  },
+
+  {
+    name: 'teammate_get_topology_stats',
+    description:
+      'Get topology statistics and optimization suggestions for a team.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        teamName: { type: 'string', description: 'Team name' },
+        includeOptimizations: {
+          type: 'boolean',
+          description: 'Include optimization suggestions (default: true)',
+        },
+      },
+      required: ['teamName'],
+    },
+  },
+
+  {
+    name: 'teammate_route_task',
+    description:
+      'Route a task to the best-suited teammate using semantic matching ' +
+      'based on skills, performance, and neural embeddings.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        teamName: { type: 'string', description: 'Team name' },
+        taskId: { type: 'string', description: 'Unique task ID' },
+        description: { type: 'string', description: 'Task description' },
+        requiredSkills: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Required skills (e.g., ["typescript", "testing"])',
+        },
+        priority: {
+          type: 'string',
+          enum: ['urgent', 'high', 'normal', 'low'],
+          description: 'Task priority (default: normal)',
+        },
+      },
+      required: ['teamName', 'taskId', 'description', 'requiredSkills'],
+    },
+  },
+
+  {
+    name: 'teammate_batch_route',
+    description:
+      'Route multiple tasks to teammates optimally, avoiding over-assignment.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        teamName: { type: 'string', description: 'Team name' },
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              description: { type: 'string' },
+              requiredSkills: { type: 'array', items: { type: 'string' } },
+              priority: { type: 'string', enum: ['urgent', 'high', 'normal', 'low'] },
+            },
+            required: ['id', 'description', 'requiredSkills'],
+          },
+          description: 'Tasks to route',
+        },
+      },
+      required: ['teamName', 'tasks'],
+    },
+  },
 ];
 
 // ============================================================================
@@ -652,6 +753,141 @@ export async function handleMCPTool(
       case 'teammate_cleanup': {
         await bridge.cleanup(params.teamName as string);
         return { success: true, data: { cleaned: true } };
+      }
+
+      // BMSSP Optimization Tools
+      case 'teammate_enable_optimizers': {
+        const wasmAvailable = await bridge.enableOptimizers();
+        return {
+          success: true,
+          data: {
+            enabled: true,
+            wasmAccelerated: wasmAvailable,
+            message: wasmAvailable
+              ? 'BMSSP WASM optimization enabled (10-15x faster)'
+              : 'Optimization enabled with JavaScript fallback',
+          },
+        };
+      }
+
+      case 'teammate_find_optimal_path': {
+        if (!bridge.areOptimizersEnabled()) {
+          return {
+            success: false,
+            error: 'Optimizers not enabled. Call teammate_enable_optimizers first.',
+          };
+        }
+
+        const teamName = validateStringParam(params.teamName, 'teamName', 64);
+        const fromId = validateStringParam(params.fromId, 'fromId', 64);
+        const toId = validateStringParam(params.toId, 'toId', 64);
+
+        const pathResult = await bridge.findOptimalPath(teamName, fromId, toId);
+        if (!pathResult) {
+          return { success: false, error: 'No path found between teammates' };
+        }
+
+        return { success: true, data: { path: pathResult } };
+      }
+
+      case 'teammate_get_topology_stats': {
+        const teamName = validateStringParam(params.teamName, 'teamName', 64);
+        const includeOptimizations = params.includeOptimizations !== false;
+
+        const stats = bridge.getTopologyStats(teamName);
+        if (!stats) {
+          return {
+            success: false,
+            error: bridge.areOptimizersEnabled()
+              ? `Team not found: ${teamName}`
+              : 'Optimizers not enabled. Call teammate_enable_optimizers first.',
+          };
+        }
+
+        const result: Record<string, unknown> = { stats };
+
+        if (includeOptimizations) {
+          const optimizations = bridge.getTopologyOptimizations(teamName);
+          if (optimizations) {
+            result.optimizations = optimizations;
+          }
+        }
+
+        return { success: true, data: result };
+      }
+
+      case 'teammate_route_task': {
+        if (!bridge.areOptimizersEnabled()) {
+          return {
+            success: false,
+            error: 'Optimizers not enabled. Call teammate_enable_optimizers first.',
+          };
+        }
+
+        const teamName = validateStringParam(params.teamName, 'teamName', 64);
+        const taskId = validateStringParam(params.taskId, 'taskId', 64);
+        const description = validateStringParam(params.description, 'description', MAX_PARAM_LENGTH);
+        const requiredSkills = validateArrayParam<string>(params.requiredSkills, 'requiredSkills', 20);
+
+        const decision = await bridge.findBestTeammateForTask(teamName, {
+          id: taskId,
+          description,
+          requiredSkills,
+          priority: (params.priority as 'urgent' | 'high' | 'normal' | 'low') ?? 'normal',
+        });
+
+        if (!decision) {
+          return { success: false, error: 'Could not determine routing decision' };
+        }
+
+        return {
+          success: true,
+          data: {
+            decision,
+            selectedTeammate: decision.selectedTeammate,
+            alternates: decision.alternates,
+            instruction: decision.selectedTeammate
+              ? `Route task to teammate "${decision.selectedTeammate}"`
+              : 'No suitable teammate found with sufficient confidence',
+          },
+        };
+      }
+
+      case 'teammate_batch_route': {
+        if (!bridge.areOptimizersEnabled()) {
+          return {
+            success: false,
+            error: 'Optimizers not enabled. Call teammate_enable_optimizers first.',
+          };
+        }
+
+        const teamName = validateStringParam(params.teamName, 'teamName', 64);
+        const tasks = validateArrayParam<{
+          id: string;
+          description: string;
+          requiredSkills: string[];
+          priority?: 'urgent' | 'high' | 'normal' | 'low';
+        }>(params.tasks, 'tasks', 50);
+
+        const decisions = await bridge.batchRouteTasksToTeammates(teamName, tasks);
+
+        // Convert Map to object for JSON serialization
+        const results: Record<string, unknown> = {};
+        for (const [taskId, decision] of decisions) {
+          results[taskId] = {
+            selectedTeammate: decision.selectedTeammate,
+            confidence: decision.matches[0]?.confidence ?? 0,
+            alternates: decision.alternates,
+          };
+        }
+
+        return {
+          success: true,
+          data: {
+            routingResults: results,
+            tasksRouted: decisions.size,
+          },
+        };
       }
 
       default:

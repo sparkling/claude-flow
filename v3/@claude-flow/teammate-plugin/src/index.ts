@@ -54,6 +54,28 @@ export {
   type ToolResult,
 } from './mcp-tools.js';
 
+// BMSSP-powered optimization exports
+export {
+  TopologyOptimizer,
+  createTopologyOptimizer,
+  type TopologyNode,
+  type TopologyEdge,
+  type PathResult,
+  type TopologyStats,
+  type OptimizationResult,
+} from './topology-optimizer.js';
+
+export {
+  SemanticRouter,
+  createSemanticRouter,
+  DEFAULT_SEMANTIC_CONFIG,
+  type TeammateProfile,
+  type TaskProfile,
+  type MatchResult,
+  type RoutingDecision,
+  type SemanticRouterConfig,
+} from './semantic-router.js';
+
 // Type exports
 export {
   // Version & Security
