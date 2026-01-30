@@ -5,6 +5,27 @@
 
 import type { InitOptions, HooksConfig } from './types.js';
 
+// Cross-platform command helpers for generated settings.json
+const IS_WINDOWS = process.platform === 'win32';
+const NULL_DEV = IS_WINDOWS ? 'NUL' : '/dev/null';
+
+/**
+ * Generate a cross-platform hook command
+ * On Unix: [ -n "$VAR" ] && npx ... 2>/dev/null || true
+ * On Windows: npx ... 2>NUL (relies on continueOnError: true)
+ */
+function hookCmd(cmd: string, guardVar?: string): string {
+  if (IS_WINDOWS) {
+    // Windows cmd.exe: no [ -n ] test, no || true (continueOnError handles it)
+    return `${cmd} 2>${NULL_DEV}`;
+  }
+  // Unix bash: guard with variable check if provided
+  if (guardVar) {
+    return `[ -n "${guardVar}" ] && ${cmd} 2>/dev/null || true`;
+  }
+  return `${cmd} 2>/dev/null || true`;
+}
+
 /**
  * Generate the complete settings.json content
  */
