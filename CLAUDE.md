@@ -327,6 +327,8 @@ This project is configured with Claude Flow V3 (Anti-Drift Defaults):
 - **Memory Backend**: hybrid (SQLite + AgentDB)
 - **HNSW Indexing**: Enabled (150x-12,500x faster)
 - **Neural Learning**: Enabled (SONA)
+- **Dual-Mode**: Enabled (Claude Code + Codex collaboration)
+- **Cross-Platform Memory**: `collaboration` namespace for shared state
 
 ## V3 CLI Commands (26 Commands, 140+ Subcommands)
 
