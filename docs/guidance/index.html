@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Claude Flow Guidance</title>
+  <meta name="description" content="Implementation guide landing page for claude-flow-guidance-implementation.">
+  <link rel="stylesheet" href="../assets/brutalist.css">
+</head>
+<body>
+  <main class="site">
+    <section class="banner">
+      <div class="banner-inner">
+        <div>
+          <span class="kicker">Guidance Control Plane</span>
+          <h1 class="brand">claude-flow-guidance-implementation</h1>
+          <p class="lead">Production wiring for `@claude-flow/guidance` across Claude Code hooks and Codex lifecycle events. Built for durable sessions, policy retrieval, and measurable optimization loops.</p>
+          <a class="btn" href="https://www.npmjs.com/package/claude-flow-guidance-implementation">Install From NPM</a>
+          <a class="btn secondary" href="https://github.com/sparkling/claude-flow-guidance-implementation">Source</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card half">
+        <h2>Quick Start</h2>
+        <pre><code>npx --yes -p claude-flow-guidance-implementation \
+  cf-guidance-impl init --target ~/source/my-project --install-deps
+
+npx --yes -p claude-flow-guidance-implementation \
+  cf-guidance-impl verify --target ~/source/my-project</code></pre>
+      </article>
+
+      <article class="card half">
+        <h2>Modes</h2>
+        <span class="pill">both</span>
+        <span class="pill">claude</span>
+        <span class="pill">codex</span>
+        <p><code>both</code> wires Claude hooks + Codex bridge. <code>claude</code> and <code>codex</code> are platform-specific install modes.</p>
+        <pre><code>npx cf-guidance-impl init --target ~/source/my-project --target-mode both</code></pre>
+      </article>
+
+      <article class="card full">
+        <h2>Core Runtime Commands</h2>
+        <table class="table">
+          <thead>
+            <tr><th>Command</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>guidance:analyze</code></td><td>Analyze current guidance quality and structure.</td></tr>
+            <tr><td><code>guidance:optimize</code></td><td>Run autopilot optimization and optionally apply changes.</td></tr>
+            <tr><td><code>guidance:autopilot:once</code></td><td>Run one promotion/optimization cycle.</td></tr>
+            <tr><td><code>guidance:autopilot:daemon</code></td><td>Run continuous background optimization.</td></tr>
+            <tr><td><code>guidance:ab-benchmark</code></td><td>Compare outcomes with and without guidance bundles.</td></tr>
+            <tr><td><code>guidance:status</code>, <code>guidance:all</code></td><td>Show integrated module and pipeline status.</td></tr>
+            <tr><td><code>guidance:trust</code>, <code>guidance:adversarial</code>, <code>guidance:proof</code>, <code>guidance:conformance</code>, <code>guidance:evolution</code></td><td>Run advanced governance modules directly.</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="card full">
+        <h2>Codex Lifecycle Bridge</h2>
+        <table class="table">
+          <thead>
+            <tr><th>Command</th><th>Event Class</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>guidance:codex:status</code></td><td>Health check for bridge and hook handler paths.</td></tr>
+            <tr><td><code>guidance:codex:session-start</code>, <code>guidance:codex:session-end</code></td><td>Session lifecycle boundaries.</td></tr>
+            <tr><td><code>guidance:codex:pre-task</code>, <code>guidance:codex:pre-command</code>, <code>guidance:codex:pre-edit</code></td><td>Pre-event gating and policy checks.</td></tr>
+            <tr><td><code>guidance:codex:post-edit</code>, <code>guidance:codex:post-task</code></td><td>Post-event telemetry and ledger finalization.</td></tr>
+          </tbody>
+        </table>
+        <pre><code>npm run guidance:codex:pre-task -- --task-id task-001 --description "Refactor CLI parser"</code></pre>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <a href="../">Back to index</a>
+    </footer>
+  </main>
+</body>
+</html>

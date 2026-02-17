@@ -1,0 +1,258 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --bg: #f5f2ea;
+  --ink: #0c0c0c;
+  --paper: #fffdf7;
+  --line: #0c0c0c;
+  --accent: #ff3b00;
+  --signal: #ffe500;
+  --muted: #5f5f5f;
+  --border: 3px solid var(--line);
+  --shadow: 7px 7px 0 0 var(--line);
+  --radius: 0;
+  --max: 1200px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, rgba(255, 229, 0, 0.08), rgba(255, 229, 0, 0) 45%),
+    repeating-linear-gradient(
+      -35deg,
+      rgba(12, 12, 12, 0.03) 0,
+      rgba(12, 12, 12, 0.03) 2px,
+      transparent 2px,
+      transparent 18px
+    ),
+    var(--bg);
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.45;
+}
+
+.site {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 24px 18px 60px;
+}
+
+.banner {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  background: var(--paper);
+  margin-bottom: 26px;
+  transform: translateY(16px);
+  opacity: 0;
+  animation: reveal 450ms ease forwards;
+}
+
+.banner-inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 18px;
+}
+
+.brand {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: clamp(1.4rem, 2vw + 1rem, 2.5rem);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  margin: 0;
+}
+
+.kicker {
+  display: inline-block;
+  background: var(--signal);
+  border: var(--border);
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  justify-self: start;
+}
+
+.lead {
+  margin: 10px 0 0;
+  max-width: 70ch;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.card {
+  border: var(--border);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  transform: translateY(20px);
+  opacity: 0;
+  animation: reveal 500ms ease forwards;
+}
+
+.card:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.card:nth-child(3) {
+  animation-delay: 180ms;
+}
+
+.card:nth-child(4) {
+  animation-delay: 240ms;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.half {
+  grid-column: span 6;
+}
+
+.third {
+  grid-column: span 4;
+}
+
+h2,
+h3 {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 0;
+}
+
+h2 {
+  font-size: clamp(1.1rem, 0.8vw + 1rem, 1.6rem);
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+a {
+  color: var(--ink);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+a.btn {
+  display: inline-block;
+  border: var(--border);
+  box-shadow: 4px 4px 0 0 var(--line);
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  padding: 10px 12px;
+  margin: 6px 8px 0 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+}
+
+a.btn.secondary {
+  background: var(--signal);
+  color: var(--ink);
+}
+
+a.btn:hover {
+  transform: translate(-2px, -2px);
+}
+
+ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+li {
+  margin: 6px 0;
+}
+
+pre {
+  margin: 10px 0 0;
+  border: var(--border);
+  background: #131313;
+  color: #f9f9f9;
+  padding: 12px;
+  overflow: auto;
+  box-shadow: var(--shadow);
+}
+
+code {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.table th,
+.table td {
+  border: var(--border);
+  padding: 8px;
+  vertical-align: top;
+}
+
+.table th {
+  background: var(--signal);
+  text-align: left;
+}
+
+.footer {
+  margin-top: 24px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.pill {
+  display: inline-block;
+  border: var(--border);
+  padding: 4px 8px;
+  margin: 0 6px 8px 0;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+}
+
+@keyframes reveal {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 960px) {
+  .half,
+  .third {
+    grid-column: 1 / -1;
+  }
+
+  .banner-inner {
+    grid-template-columns: 1fr;
+  }
+}
