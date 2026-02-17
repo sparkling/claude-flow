@@ -18,10 +18,31 @@
           <a class="btn" href="https://www.npmjs.com/package/claude-flow-patch">Install From NPM</a>
           <a class="btn secondary" href="https://github.com/sparkling/claude-flow-patch">Source</a>
         </div>
+        <img class="banner-art" src="../assets/patch-matrix.svg" alt="Patch category matrix graphic">
       </div>
     </section>
 
+    <div class="marquee"><span>patch :: verify :: repair :: namespace integrity :: hook fidelity :: daemon stability ::</span></div>
+
     <section class="grid">
+      <article class="card full">
+        <h2>Patch Snapshot</h2>
+        <div class="stat-grid">
+          <div class="stat"><span class="label">Package</span><span class="value">0.1.2</span></div>
+          <div class="stat"><span class="label">Defect Catalog</span><span class="value">28 tracked</span></div>
+          <div class="stat"><span class="label">Primary Flow</span><span class="value">patch - check - init</span></div>
+          <div class="stat"><span class="label">Repair Path</span><span class="value">post-init helper sync</span></div>
+        </div>
+      </article>
+
+      <article class="card full">
+        <h2>Coverage Matrix</h2>
+        <div class="graphic-frame">
+          <img class="graphic" src="../assets/patch-matrix.svg" alt="Patch coverage matrix">
+        </div>
+        <p class="tiny">Bars represent category intensity across worker, daemon, hooks, namespace, and init defects.</p>
+      </article>
+
       <article class="card half">
         <h2>Patch Flow</h2>
         <pre><code>npx --yes claude-flow-patch patch --scope both
@@ -33,6 +54,32 @@ npx @claude-flow/cli@latest init</code></pre>
         <h2>Repair Existing Projects</h2>
         <pre><code>npx --yes claude-flow-patch repair --target /path/to/project</code></pre>
         <p>Use this if the project was initialized before patches were applied.</p>
+      </article>
+
+      <article class="card third">
+        <h3>Global Scope</h3>
+        <p>Patches `~/.npm/_npx/*` cache paths used by transient `npx` executions.</p>
+      </article>
+
+      <article class="card third">
+        <h3>Local Scope</h3>
+        <p>Patches `./node_modules` paths where projects pin local CLI dependencies.</p>
+      </article>
+
+      <article class="card third">
+        <h3>Both Scope</h3>
+        <p>Recommended default so runtime behavior is stable regardless of invocation path.</p>
+      </article>
+
+      <article class="card full">
+        <h2>Operator Runbook</h2>
+        <ol class="steps">
+          <li>Run patch with `--scope both` on any machine before init/upgrade.</li>
+          <li>Run check to ensure sentinels are present and no cache drift occurred.</li>
+          <li>Initialize or upgrade target projects after successful checks.</li>
+          <li>If project was initialized earlier, run repair to rehydrate helpers.</li>
+          <li>Re-run check after npm cache churn or CLI version updates.</li>
+        </ol>
       </article>
 
       <article class="card full">

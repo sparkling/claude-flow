@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 460" role="img" aria-labelledby="title desc">
+  <title id="title">Patch Matrix</title>
+  <desc id="desc">Patch categories and verification pipeline overview.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#121025"/>
+      <stop offset="100%" stop-color="#07060f"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#5f4bff"/>
+      <stop offset="100%" stop-color="#31e8ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="980" height="460" fill="url(#bg)"/>
+
+  <g opacity="0.18" stroke="#31e8ff" stroke-width="1">
+    <path d="M80 360H930"/>
+    <path d="M80 300H930"/>
+    <path d="M80 240H930"/>
+    <path d="M80 180H930"/>
+    <path d="M80 120H930"/>
+  </g>
+
+  <g fill="url(#bar)">
+    <rect x="120" y="210" width="48" height="150"/>
+    <rect x="205" y="180" width="48" height="180"/>
+    <rect x="290" y="146" width="48" height="214"/>
+    <rect x="375" y="164" width="48" height="196"/>
+    <rect x="460" y="220" width="48" height="140"/>
+    <rect x="545" y="130" width="48" height="230"/>
+    <rect x="630" y="172" width="48" height="188"/>
+    <rect x="715" y="205" width="48" height="155"/>
+    <rect x="800" y="186" width="48" height="174"/>
+  </g>
+
+  <g fill="#d8ffe4" font-family="'IBM Plex Mono', monospace" font-size="13" text-anchor="middle">
+    <text x="144" y="386">HW</text>
+    <text x="229" y="386">DM</text>
+    <text x="314" y="386">NS</text>
+    <text x="399" y="386">HK</text>
+    <text x="484" y="386">CF</text>
+    <text x="569" y="386">IN</text>
+    <text x="654" y="386">RV</text>
+    <text x="739" y="386">UI</text>
+    <text x="824" y="386">RS</text>
+  </g>
+
+  <g fill="#f6ff66" font-family="'IBM Plex Mono', monospace" font-size="24">
+    <text x="80" y="62">PATCH MATRIX / DEFECT COVERAGE</text>
+  </g>
+
+  <g stroke="#45ff84" stroke-width="3" fill="none">
+    <path d="M100 90H340"/>
+    <path d="M340 90L390 125"/>
+    <rect x="390" y="102" width="160" height="46" rx="8"/>
+    <text x="420" y="132" fill="#d8ffe4" font-family="'IBM Plex Mono', monospace" font-size="16">VERIFY</text>
+    <path d="M550 124L620 124"/>
+    <rect x="620" y="102" width="200" height="46" rx="8"/>
+    <text x="642" y="132" fill="#d8ffe4" font-family="'IBM Plex Mono', monospace" font-size="16">REPAIR IF NEEDED</text>
+  </g>
+</svg>
