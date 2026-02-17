@@ -40,6 +40,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "build:pages": "bash scripts/build-pages.sh",
     "build:ts": "cd v3/@claude-flow/cli && npm run build || true",
     "test": "vitest",
     "test:ui": "vitest --ui",
