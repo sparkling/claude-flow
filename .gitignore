@@ -146,6 +146,12 @@ claude-flow.config.json
 *.sqlite-journal
 *.sqlite-wal
 claude-flow
+!docs/claude-flow/
+!docs/claude-flow/**
+!docs/guidance/claude-flow/
+!docs/guidance/claude-flow/**
+!docs/patch/claude-flow/
+!docs/patch/claude-flow/**
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
 
