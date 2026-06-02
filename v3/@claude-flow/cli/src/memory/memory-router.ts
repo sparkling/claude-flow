@@ -725,7 +725,12 @@ async function initControllerRegistry(dbPath?: string): Promise<any | null> {
           // best-effort registry-init failures. Silently disabling the
           // registry on any of them masks data-loss regressions per ADR-0082.
           if (_isFatalInitError(e)) throw e;
-          throw new Error('registry init failed');
+          // Preserve the original cause: a non-fatal-named init failure must not
+          // vanish into a bare 'registry init failed' (which the caller then
+          // turns into the misleading "neural is disabled" message). The chained
+          // cause keeps the real reason recoverable for diagnostics even when the
+          // error name isn't in the fatal set.
+          throw new Error('registry init failed', { cause: e });
         }
 
         _registryInstance = registry;
