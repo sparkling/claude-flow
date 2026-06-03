@@ -72,7 +72,7 @@ describe('smartSearch — multi-query fan-out', () => {
   });
 
   it('falls back to a single raw call when multiQuery=false', async () => {
-    const search = vi.fn<SearchFn>(async () => ({
+    const search: SearchFn = vi.fn(async () => ({
       results: [makeCandidate({ id: 'x', content: 'only one' })],
     }));
 

@@ -148,7 +148,7 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
       expect(level0).toBeDefined();
       expect(level0!.controllers).toContain('resourceTracker');
       expect(level0!.controllers).toContain('rateLimiter');
-      expect(level0!.controllers).toContain('circuitBreakerController');
+      expect(level0!.controllers).toContain('circuitBreaker');
     });
 
     it('should have Level 1 with metadataFilter and queryOptimizer', () => {
@@ -253,7 +253,7 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
 
     it('should initialize circuitBreakerController without AgentDB', async () => {
       await registry.initialize({});
-      const cb = registry.get<any>('circuitBreakerController');
+      const cb = registry.get<any>('circuitBreaker');
       expect(cb).not.toBeNull();
       expect(typeof cb.wrap).toBe('function');
       expect(typeof cb.getState).toBe('function');
@@ -301,7 +301,7 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
 
     it('circuitBreakerController should pass through successful calls', async () => {
       await registry.initialize({});
-      const cb = registry.get<any>('circuitBreakerController');
+      const cb = registry.get<any>('circuitBreaker');
       const result = cb.wrap('test', () => 42);
       expect(result).toBe(42);
       expect(cb.getState('test')).toBe('CLOSED');
@@ -309,7 +309,7 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
 
     it('circuitBreakerController should open after threshold failures', async () => {
       await registry.initialize({});
-      const cb = registry.get<any>('circuitBreakerController');
+      const cb = registry.get<any>('circuitBreaker');
       // Trigger 5 failures to open
       for (let i = 0; i < 5; i++) {
         cb.wrap('test', () => { throw new Error('fail'); });
@@ -323,13 +323,13 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
 
     it('circuitBreakerController should return CLOSED for unknown circuits', async () => {
       await registry.initialize({});
-      const cb = registry.get<any>('circuitBreakerController');
+      const cb = registry.get<any>('circuitBreaker');
       expect(cb.getState('nonexistent')).toBe('CLOSED');
     });
 
     it('circuitBreakerController should report stats', async () => {
       await registry.initialize({});
-      const cb = registry.get<any>('circuitBreakerController');
+      const cb = registry.get<any>('circuitBreaker');
       cb.wrap('svc-a', () => 1);
       cb.wrap('svc-b', () => { throw new Error('oops'); });
       const stats = cb.getStats();
@@ -342,7 +342,7 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
       await registry.initialize({});
       expect(registry.isEnabled('resourceTracker')).toBe(true);
       expect(registry.isEnabled('rateLimiter')).toBe(true);
-      expect(registry.isEnabled('circuitBreakerController')).toBe(true);
+      expect(registry.isEnabled('circuitBreaker')).toBe(true);
     });
   });
 
@@ -359,7 +359,7 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
     it('should report Level 0 controllers as healthy', async () => {
       await registry.initialize({});
       const report = await registry.healthCheck();
-      const level0Names = ['resourceTracker', 'rateLimiter', 'circuitBreakerController'];
+      const level0Names = ['resourceTracker', 'rateLimiter', 'circuitBreaker'];
       for (const name of level0Names) {
         const entry = report.controllers.find((c) => c.name === name);
         expect(entry).toBeDefined();
@@ -450,7 +450,7 @@ describe('ADR-0041 Composition-Aware Architecture', () => {
       for (let i = 0; i < 1000; i++) {
         registry.get('resourceTracker');
         registry.get('rateLimiter');
-        registry.get('circuitBreakerController');
+        registry.get('circuitBreaker');
       }
       const duration = performance.now() - start;
       // 3000 lookups in under 10ms

@@ -18,7 +18,7 @@
  *   6. on-disk dim is invalid (0, NaN, negative) → no-op
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import { RvfBackend } from './rvf-backend.js';
 
 function makeBackend(dim: number): RvfBackend {
@@ -29,7 +29,7 @@ function makeBackend(dim: number): RvfBackend {
 }
 
 describe('RvfBackend.adoptOnDiskDimIfDiffers', () => {
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: MockInstance<Parameters<typeof console.warn>, void>;
 
   beforeEach(() => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
