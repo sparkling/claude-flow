@@ -516,6 +516,7 @@ export class HybridBackend extends EventEmitter implements IMemoryBackend {
       memoryUsage: sqliteStats.memoryUsage + agentdbStats.memoryUsage,
       hnswStats: agentdbStats.hnswStats ?? {
         vectorCount: agentdbStats.totalEntries,
+        dimensions: this.config.agentdb?.vectorDimension ?? 0,
         memoryUsage: 0,
         avgSearchTime: agentdbStats.avgSearchTime,
         buildTime: 0,

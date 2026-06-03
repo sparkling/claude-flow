@@ -696,7 +696,11 @@ export const neuralTools: MCPTool[] = [
             acc[p.type] = (acc[p.type] || 0) + 1;
             return acc;
           }, {} as Record<string, number>),
-          totalEmbeddingDims: patterns.length > 0 ? patterns[0].embedding.length : 384,
+          // Real stored dimension when a pattern exists. With an empty store
+          // there is genuinely no embedding dimension yet — report null rather
+          // than a fabricated literal (the old `384` was a hardcoded guess and
+          // is wrong for the unified 768-dim model).
+          totalEmbeddingDims: patterns.length > 0 ? patterns[0].embedding.length : null,
         },
         features: {
           hnsw: true,

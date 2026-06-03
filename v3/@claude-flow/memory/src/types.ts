@@ -287,6 +287,15 @@ export interface HNSWStats {
   /** Total number of vectors in the index */
   vectorCount: number;
 
+  /**
+   * Embedding dimensionality of the indexed vectors.
+   * Optional so existing HNSWStats producers that predate this field still
+   * type-check; every backend's hnswStats literal (rvf/agentdb/hybrid)
+   * populates it with the real configured dim, and consumers floor a missing
+   * value to 0 / 'unknown' rather than fabricating one.
+   */
+  dimensions?: number;
+
   /** Memory usage in bytes */
   memoryUsage: number;
 

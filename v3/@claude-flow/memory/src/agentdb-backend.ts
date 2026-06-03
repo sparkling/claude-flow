@@ -689,6 +689,9 @@ export class AgentDBBackend extends EventEmitter implements IMemoryBackend {
           const stats = hnsw.getStats();
           hnswStats = {
             vectorCount: stats.numElements || 0,
+            // Prefer the dimension the native index reports; fall back to the
+            // configured vectorDimension the index was built with. Never 0.
+            dimensions: stats.dimension ?? stats.dim ?? this.config.vectorDimension ?? 0,
             memoryUsage: 0,
             avgSearchTime: stats.avgSearchTimeMs || 0,
             buildTime: stats.lastBuildTime || 0,

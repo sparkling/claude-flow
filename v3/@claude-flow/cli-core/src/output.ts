@@ -522,6 +522,10 @@ export class Progress {
   }
 
   render(): void {
+    // Carriage-return redraw only makes sense on a TTY. On a non-TTY stdout
+    // (piped/redirected) each frame would append a fresh line, so stay silent.
+    if (!process.stdout.isTTY) return;
+
     const bar = this.formatter.progressBar(this.current, this.total, this.width);
 
     let output = bar;
@@ -548,6 +552,7 @@ export class Progress {
 
   finish(): void {
     this.current = this.total;
+    if (!process.stdout.isTTY) return;
     this.render();
     process.stdout.write('\n');
   }
@@ -595,6 +600,10 @@ export class Spinner {
   start(): void {
     if (this.interval) return;
 
+    // On a non-TTY stdout (piped/redirected) carriage-return animation just
+    // appends a new frame line every tick. Never start the loop there.
+    if (!process.stdout.isTTY) return;
+
     this.interval = setInterval(() => {
       this.render();
       this.frameIndex = (this.frameIndex + 1) % this.frames.length;
@@ -610,8 +619,11 @@ export class Spinner {
       this.interval = null;
     }
 
-    // Clear the line
-    process.stdout.write('\r' + ' '.repeat(this.text.length + 10) + '\r');
+    // Clear the line — only on a TTY, where the spinner actually drew a frame.
+    // On a non-TTY the carriage-return clear would itself be stray output.
+    if (process.stdout.isTTY) {
+      process.stdout.write('\r' + ' '.repeat(this.text.length + 10) + '\r');
+    }
 
     if (message) {
       this.formatter.writeln(message);
@@ -627,6 +639,9 @@ export class Spinner {
   }
 
   private render(): void {
+    // Guard the actual sink too: never emit a \r-frame on a non-TTY stdout.
+    if (!process.stdout.isTTY) return;
+
     const frame = this.formatter.info(this.frames[this.frameIndex]);
     process.stdout.write(`\r${frame} ${this.text}`);
   }

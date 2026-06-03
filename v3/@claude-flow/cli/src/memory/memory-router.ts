@@ -2122,10 +2122,11 @@ async function _routeEmbeddingOpImpl(op: EmbeddingOp): Promise<MemoryResult> {
         // need to know the internal shape (memory.ts + neural.ts + future
         // reporters all see a uniform `{ available, entryCount, dimensions }`
         // contract). The presence of `hnswStats` means RvfBackend has an
-        // HNSW index wired (see rvf-backend.ts ~L998). On the native
-        // @sparkleideas/ruvector-rvf-node path `hnswStats` is undefined
-        // — that case is a separate reporter follow-up (the agent flagged
-        // this when fixing the memory.ts HNSW reporter).
+        // HNSW index wired (see rvf-backend.ts ~L998). `dimensions` is the
+        // real embedding dimension the index was built with (configured dim,
+        // e.g. 768) — populated by every backend's hnswStats literal
+        // (rvf/agentdb/hybrid). The `?? 0` floor only applies when there is
+        // genuinely no HNSW index, in which case `available` is false.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const hnswStats: any = (stats as any).hnswStats;
         return {

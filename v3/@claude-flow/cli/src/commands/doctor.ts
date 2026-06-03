@@ -101,14 +101,18 @@ async function checkNpmVersion(): Promise<HealthCheck> {
 
 // Check config file
 async function checkConfigFile(): Promise<HealthCheck> {
-  // JSON configs (parse-validated). The first three are LEGACY shapes from
-  // pre-v3 init flows; v3 init writes only `.claude-flow/config.yaml`.
+  // JSON configs (parse-validated). `.claude-flow/config.json` is the
+  // CANONICAL config the substrate reads (ADR-0214/ADR-0064 — the loader
+  // and daemon read config.json; env-var "knobs" that don't reach it are
+  // theatre). The other two are alternate JSON locations checked for
+  // completeness.
   const jsonPaths = [
     '.claude-flow/config.json',
     'claude-flow.config.json',
     '.claude-flow.json'
   ];
   // YAML configs (existence-checked only — no heavy yaml parser dependency).
+  // These are a LEGACY read-fallback shape, not the canonical config.
   const yamlPaths = [
     '.claude-flow/config.yaml',
     '.claude-flow/config.yml',
@@ -116,10 +120,10 @@ async function checkConfigFile(): Promise<HealthCheck> {
   ];
 
   // #1798 — collect ALL configs that exist instead of returning at the first
-  // hit. The previous early-return masked silent collisions: if both a v2
-  // JSON and a v3 YAML existed, doctor reported only the JSON while the
-  // daemon was actually reading from the YAML. Surfacing both lets the user
-  // see and resolve the disagreement.
+  // hit. The previous early-return masked silent collisions: a stray legacy
+  // YAML alongside the canonical JSON could go unreported, leaving the user
+  // unaware of a config the daemon is ignoring in favour of config.json.
+  // Surfacing both lets the user see and resolve the disagreement.
   const foundJson: string[] = [];
   const invalidJson: string[] = [];
   for (const configPath of jsonPaths) {
@@ -138,23 +142,25 @@ async function checkConfigFile(): Promise<HealthCheck> {
     return { name: 'Config File', status: 'fail', message: `Invalid JSON: ${invalidJson.join(', ')}`, fix: 'Fix JSON syntax in config file' };
   }
 
-  // #1798 — collision: legacy JSON + new YAML both present. Subsystems can
-  // disagree on which to read; surface this as a warn with the recommended
-  // resolution (keep the YAML, archive the JSON).
+  // #1798 — collision: canonical JSON + legacy YAML both present. Subsystems
+  // can disagree on which to read; surface this as a warn with the recommended
+  // resolution (keep the canonical JSON, archive the legacy YAML). Precedence
+  // is json-wins per ADR-0214/ADR-0064 — config.json is what the substrate
+  // actually reads.
   if (foundJson.length > 0 && foundYaml.length > 0) {
     return {
       name: 'Config File',
       status: 'warn',
-      message: `Config collision: legacy ${foundJson.join(', ')} + ${foundYaml.join(', ')} — subsystems may disagree silently`,
-      fix: `Archive the legacy JSON (mv ${foundJson[0]} ${foundJson[0]}.bak) and keep ${foundYaml[0]} as the canonical config`,
+      message: `Config collision: canonical ${foundJson.join(', ')} + legacy ${foundYaml.join(', ')} — subsystems may disagree silently`,
+      fix: `Archive the legacy YAML (mv ${foundYaml[0]} ${foundYaml[0]}.bak) and keep ${foundJson[0]} as the canonical config`,
     };
   }
 
-  if (foundYaml.length > 0) {
-    return { name: 'Config File', status: 'pass', message: `Found: ${foundYaml[0]}` };
-  }
   if (foundJson.length > 0) {
     return { name: 'Config File', status: 'pass', message: `Found: ${foundJson[0]}` };
+  }
+  if (foundYaml.length > 0) {
+    return { name: 'Config File', status: 'pass', message: `Found: ${foundYaml[0]}` };
   }
 
   return { name: 'Config File', status: 'warn', message: 'No config file (using defaults)', fix: 'claude-flow config init' };
@@ -163,7 +169,13 @@ async function checkConfigFile(): Promise<HealthCheck> {
 // Check daemon status
 async function checkDaemonStatus(): Promise<HealthCheck> {
   try {
-    const pidFile = '.claude-flow/daemon.pid';
+    // ADR-0137: anchor the PID file at the project root, NOT cwd. The daemon
+    // writes its PID to `join(findProjectRoot(), '.claude-flow', 'daemon.pid')`
+    // (daemon.ts:459/615, worker-daemon.ts:847); a cwd-relative path here
+    // misses it when doctor runs from a subdirectory, reporting a running
+    // daemon as "Not running". Keep PID-based liveness gating (process.kill
+    // signal 0) per ADR-0207 — do NOT trust daemon-state.json.running.
+    const pidFile = join(findProjectRoot(), '.claude-flow', 'daemon.pid');
     if (existsSync(pidFile)) {
       const pid = readFileSync(pidFile, 'utf8').trim();
       try {

@@ -171,6 +171,9 @@ const routeTaskCommand: Command = {
       const router = await getRouter();
       const result: RouteDecision = router.route(taskDescription, useExploration);
       const agent = getAgentType(result.route) || AGENT_TYPES[0];
+      // When the Q-table has never been updated, confidence/Q-value are
+      // cold defaults (uniform 12.5% / 0.000), not learned signal.
+      const untrained = router.getStats().updateCount === 0;
 
       spinner.succeed(`Routed to ${agent.name}`);
 
@@ -180,6 +183,7 @@ const routeTaskCommand: Command = {
           agentId: result.route,
           agentName: agent.name,
           confidence: result.confidence,
+          untrained,
           qValues: result.qValues,
           explored: result.explored,
           alternatives: result.alternatives.map(a => ({
@@ -204,13 +208,24 @@ const routeTaskCommand: Command = {
         const capabilities = agent.capabilities || [];
         const alternatives = result.alternatives || [];
 
+        // Untrained Q-table: 12.5%/0.000 are uniform cold defaults, not
+        // learned signal — say so instead of printing a misleading number.
+        const learningLines = untrained
+          ? [
+              `Confidence: ${output.dim('n/a (untrained — no learning data yet)')}`,
+              `Q-Value: ${output.dim('n/a (keyword match; train via "route feedback")')}`,
+            ]
+          : [
+              `Confidence: ${confidenceColor(`${(confidence * 100).toFixed(1)}%`)}`,
+              `Q-Value: ${maxQValue.toFixed(3)}`,
+              `Exploration: ${result.explored ? output.warning('Yes') : 'No'}`,
+            ];
+
         output.printBox([
           `Task: ${taskDescription}`,
           ``,
           `Agent: ${output.highlight(agent.name)} (${result.route})`,
-          `Confidence: ${confidenceColor(`${(confidence * 100).toFixed(1)}%`)}`,
-          `Q-Value: ${maxQValue.toFixed(3)}`,
-          `Exploration: ${result.explored ? output.warning('Yes') : 'No'}`,
+          ...learningLines,
           ``,
           `Description: ${agent.description}`,
           `Capabilities: ${capabilities.join(', ')}`,

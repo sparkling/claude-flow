@@ -1239,6 +1239,7 @@ export class RvfBackend implements IMemoryBackend {
       memoryUsage,
       hnswStats: this.hnswIndex ? {
         vectorCount: this.hnswIndex.size,
+        dimensions: this.config.dimensions,
         memoryUsage: this.hnswIndex.size * this.config.dimensions * 4,
         avgSearchTime: avgSearch,
         buildTime: 0,
