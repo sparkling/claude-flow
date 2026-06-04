@@ -65,13 +65,13 @@ Entity nodes are stored via `agentdb_hierarchical-store`; relation edges via `ag
 4. **Prune** -- remove paths below threshold (default 0.3)
 5. **Rank** -- return top-K paths by cumulative relevance
 
-## G7 controllers (activated in ruflo 3.6.23+ / 3.6.24)
+## G7 controllers (ADR-095 targets — actual live state per ADR-0294 X1)
 
-[ADR-095](../../v3/docs/adr/ADR-095-architectural-gaps-from-april-audit.md) closed five AgentDB controllers that this plugin's graph traversal can leverage:
+[ADR-095](../../v3/docs/adr/ADR-095-architectural-gaps-from-april-audit.md) targeted five AgentDB controllers this plugin's graph traversal can leverage; **today only `gnnService` and `rvfOptimizer` are actually ON** (verified 2026-06-04):
 
-- **`gnnService`** — GNN embeddings + relational scoring over the AgentDB causal graph. Augments the pathfinder's `semantic_similarity(query, node)` term with structurally-aware scoring; nodes that are graph-neighbors of confirmed-relevant nodes get a boost.
-- **`rvfOptimizer`** — Quantizes + dedupes vector blocks before persistence. Knowledge-graph indexes commonly have many near-duplicate entity vectors (same class re-exported from multiple modules); rvfOptimizer collapses them transparently.
-- **`mutationGuard`** + **`attestationLog`** + **`GuardedVectorBackend`** — Proof-gated writes to the underlying vector store. Relevant when the graph spans trust boundaries (federated knowledge import) — the attestation chain at `.swarm/attestation.db` records every mutation for after-the-fact audit.
+- **`gnnService`** (ON) — GNN embeddings + relational scoring over the AgentDB causal graph. Augments the pathfinder's `semantic_similarity(query, node)` term with structurally-aware scoring; nodes that are graph-neighbors of confirmed-relevant nodes get a boost.
+- **`rvfOptimizer`** (ON) — Quantizes + dedupes vector blocks before persistence. Knowledge-graph indexes commonly have many near-duplicate entity vectors (same class re-exported from multiple modules); rvfOptimizer collapses them transparently.
+- **`mutationGuard`** + **`attestationLog`** + **`GuardedVectorBackend`** (OFF) — would proof-gate writes to the underlying vector store when the graph spans trust boundaries (federated knowledge import), recording an attestation chain at `.swarm/attestation.db`. Not currently activated in the fork.
 
 The yet-pending **`graphAdapter`** controller will give this plugin a first-class graph-DB backend (instead of building the graph view on top of AgentDB's flat causal-edge table). Tracked in ADR-095.
 

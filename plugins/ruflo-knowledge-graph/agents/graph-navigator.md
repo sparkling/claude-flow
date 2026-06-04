@@ -51,8 +51,9 @@ The pathfinder traversal algorithm finds relevant subgraphs:
 - `mcp__ruflo__agentdb_hierarchical-recall` -- recall entities by path or query
 - `mcp__ruflo__agentdb_pattern-store` -- store discovered graph patterns
 - `mcp__ruflo__agentdb_pattern-search` -- search for similar graph structures (use for semantic
-  similarity routing; the previous `agentdb_semantic-route` controller was retired upstream
-  per #2049 — it returns "SemanticRouter not available in current agentdb build")
+  similarity routing; `agentdb_semantic-route` with no routes configured returns an honest
+  no-routes envelope — `{success:false, error:"No semantic routes configured",
+  recommendation:"Use agentdb_route"}`, per ADR-0294 O2)
 - `mcp__ruflo__agentdb_context-synthesize` -- synthesize context from multiple graph nodes
 - `mcp__ruflo__embeddings_generate` -- generate embeddings for entity descriptions
 
@@ -68,9 +69,9 @@ npx @sparkleideas/cli@latest neural train --pattern-type knowledge-graph --epoch
 
 Store successful graph patterns and entity extraction results:
 ```bash
-npx @sparkleideas/cli@latest memory store --namespace knowledge-graph --key "entity-ENTITY_NAME" --value "ENTITY_METADATA_JSON"
-npx @sparkleideas/cli@latest memory store --namespace knowledge-graph --key "pattern-PATTERN_NAME" --value "GRAPH_PATTERN_JSON"
-npx @sparkleideas/cli@latest memory search --query "entities related to authentication" --namespace knowledge-graph
+npx @sparkleideas/cli@latest memory store --namespace kg-graph --key "entity-ENTITY_NAME" --value "ENTITY_METADATA_JSON"
+npx @sparkleideas/cli@latest memory store --namespace kg-graph --key "pattern-PATTERN_NAME" --value "GRAPH_PATTERN_JSON"
+npx @sparkleideas/cli@latest memory search --query "entities related to authentication" --namespace kg-graph
 ```
 
 ### Related Plugins

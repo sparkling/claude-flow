@@ -31,7 +31,7 @@ Counted directly from source on 2026-05-04 (HEAD of `main`):
 | Surface | Plugin claim | Real count | Source |
 |---|---|---|---|
 | `agentdb_*` MCP tools | "19 controllers" → implies tools | **15 tools** | `v3/@sparkleideas/cli/src/mcp-tools/agentdb-tools.ts:629–645` (`agentdbTools` export array) |
-| `embeddings_*` MCP tools | 7 enumerated in skill | **7 registered tools** | `v3/@sparkleideas/cli/src/mcp-tools/embeddings-tools.ts` (`embeddings_init`/`_generate`/`_compare`/`_search`/`_neural`/`_hyperbolic`/`_status`) |
+| `embeddings_*` MCP tools | 7 enumerated in skill | **10 registered tools** (ADR-0294 R3 added the 3 `embeddings_rabitq_*`) | `v3/@sparkleideas/cli/src/mcp-tools/embeddings-tools.ts` (`embeddings_init`/`_generate`/`_compare`/`_search`/`_neural`/`_hyperbolic`/`_status` + `embeddings_rabitq_status`/`_build`/`_search`) |
 | `ruvllm_hnsw_*` MCP tools | 3 enumerated | **3 tools** (correct) but capacity is **~11 patterns**, not 10,000 | `v3/@sparkleideas/cli/src/mcp-tools/ruvllm-tools.ts:57–58` ("Max ~11 patterns (v2.0.1 limit)") |
 | Controllers in `ControllerRegistry` | "19" | **29** names across 6 init levels: 13 AgentDB-layer + 16 CLI-layer | `v3/@sparkleideas/memory/src/controller-registry.ts:34–73` (type `ControllerName`) and `:160–174` (`INIT_LEVELS`) |
 | HNSW tuning (`efSearch`, `efConstruction`, `M`) | Not surfaced in any skill | `efSearch` accepted as a constructor param on `ruvllm_hnsw_create`; `efConstruction` defaulted to 200 in the lite index; `M` not exposed via MCP | `ruvllm-tools.ts:64`, `v3/@sparkleideas/memory/src/hnsw-index.ts:537` |
@@ -39,7 +39,7 @@ Counted directly from source on 2026-05-04 (HEAD of `main`):
 | Native graph-node backend for causal edges | Not documented | ADR-087: `agentdb_causal-edge` tries graph-node first, falls back to bridge | `agentdb-tools.ts:267–290` |
 | `agentdb` npm dep version | Not pinned in plugin | `agentdb: ^3.0.0-alpha.11` in CLI's `package.json:120`; `pnpm-lock.yaml` resolves multiple versions (1.6.1, 2.0.0-alpha.3.4/3.7, 3.0.0-alpha.10/11) | `v3/@sparkleideas/cli/package.json:120`; `v3/node_modules/.pnpm/` |
 
-The "19 controllers" number appears to be a stale snapshot from before ADR-095 G7 closed five disabled-by-default controllers (`gnnService`, `rvfOptimizer`, `mutationGuard`, `attestationLog`, `GuardedVectorBackend`) and before ADR-053 added `mmrDiversityRanker`, `contextSynthesizer`, `batchOperations`, `memoryConsolidation`, `hierarchicalMemory` to the CLI-layer registry. The plugin README block on G7 (`README.md:22–35`) is accurate about the five activated controllers and about `graphAdapter` still being disabled — but the surrounding "19" framing is not.
+The "19 controllers" number appears to be a stale snapshot from before ADR-095 G7 *targeted* five disabled-by-default controllers (`gnnService`, `rvfOptimizer`, `mutationGuard`, `attestationLog`, `GuardedVectorBackend`) and before ADR-053 added `mmrDiversityRanker`, `contextSynthesizer`, `batchOperations`, `memoryConsolidation`, `hierarchicalMemory` to the CLI-layer registry. Of the five G7 targets, **only `gnnService` and `rvfOptimizer` are actually ON today** (ADR-0294 X1, verified 2026-06-04); `mutationGuard`, `attestationLog`, and `GuardedVectorBackend` remain OFF, and `graphAdapter` is still disabled. The plugin README's G7 block was corrected to this 2-of-5 state in ADR-0294 X1; the surrounding "19" framing is also wrong.
 
 ### What's missing entirely
 
@@ -49,14 +49,18 @@ Beyond the count drift, the plugin omits three substantive capabilities of the s
 2. **Namespacing convention.** Every consumer plugin (`ruflo-browser` defines `browser-sessions / browser-selectors / browser-templates / browser-cookies` in its ADR-0001 §3; `ruflo-rag-memory` references `claude-memories / patterns / tasks / solutions`; `ruflo-intelligence` writes to `pattern`) reinvents namespace naming. There is no contract from `ruflo-agentdb` about how namespaces should be named, what they should contain, or how they are GC'd. The `agentdb_*` tools mostly do not even take a namespace parameter — they route to controllers (`reasoningBank`, `hierarchicalMemory`, `causalGraph`) — but the CLI fallback `memory_store` and `embeddings_search` *do* take namespace strings, so the surface is mixed and undocumented.
 3. **Token-efficiency path.** The repo ships `getCompactContext` on the `TokenOptimizer` (`v3/@sparkleideas/integration/src/token-optimizer.ts:109`), and `agentdb_context-synthesize` exists for the same goal at the MCP layer. Neither is surfaced by the plugin as a "use this when you want compact retrieved context for an LLM call" workflow.
 
-> **Note (ADR-0248)**: A prior revision of this document advertised
-> a RaBitQ 1-bit quantization workflow (build/search/status tools) for
-> 32× memory reduction. Those tools were never registered in the
-> central cli MCP registry (`v3/@sparkleideas/cli/src/mcp-tools/`) and
-> the backing index implementation was never written. Per ADR-0210's
-> implement/restore/delete mandate, all phantom references were removed
-> in ADR-0248 (2026-05-24). If quantization is implemented in
-> the future, reintroduce the workflow at that time.
+> **Note (ADR-0248 → superseded by ADR-0294 R3)**: A prior revision
+> advertised a RaBitQ 1-bit quantization workflow (build/search/status
+> tools) for 32× memory reduction. ADR-0248 correctly found those tools
+> *unregistered* in both upstream and the fork at the time and removed
+> the phantom advertisement. Upstream subsequently shipped the working
+> `embeddings_rabitq_*` tools, and **ADR-0294 R3 (2026-06-04) wired the
+> fork's retained `rabitq-index.ts` wrapper to its WASM backend
+> (`@ruvector/rabitq-wasm`) and registered the 3 MCP tools**
+> (`embeddings_rabitq_status` / `_build` / `_search`). The capability is
+> now real and reachable: `embeddings_rabitq_build` over a ≥5-vector
+> store returns a 32× compression envelope; `embeddings_rabitq_search`
+> returns ranked results. The ADR-0248 phantom verdict no longer holds.
 
 ### Why now
 

@@ -756,11 +756,16 @@ const statsCommand: Command = {
             },
             {
               metric: 'HNSW Index',
+              // ADR-0294 X2 (ADR-0257 anomaly #5): the prior bare "not active"
+              // read as broken when it is usually the expected pre-threshold
+              // state — the RVF HNSW index builds once the store crosses 32
+              // entries, so a small/fresh store legitimately has no index yet.
+              // Say what it means instead of implying a fault.
               value: hnsw.available && hnsw.initialized
                 ? output.success(`active (${hnsw.entryCount.toLocaleString()} entries)`)
                 : hnsw.available
                   ? output.warning('available but not initialized')
-                  : output.dim('not active'),
+                  : output.dim('building after 32 entries'),
             },
           ]
         });

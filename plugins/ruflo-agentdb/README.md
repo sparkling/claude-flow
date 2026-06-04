@@ -44,19 +44,19 @@ Initialization order per ADR-053 (`controller-registry.ts:160-174`):
 | 5 | `graphTransformer`, `sonaTrajectory`, `contextSynthesizer`, `rvfOptimizer`, `mmrDiversityRanker`, `guardedVectorBackend` | Advanced services |
 | 6 | `federatedSession`, `graphAdapter` | Session management |
 
-`graphAdapter` is currently disabled pending an external graph-DB connection (tracked in ADR-095). Other Level-2/3 security controllers (`mutationGuard`, `attestationLog`, `gnnService`, `rvfOptimizer`, `guardedVectorBackend`) were activated by ADR-095 G7 in ruflo 3.6.23+.
+`graphAdapter` is currently disabled pending an external graph-DB connection (tracked in ADR-095). ADR-095 G7 targeted five Level-2/3 controllers (`mutationGuard`, `attestationLog`, `gnnService`, `rvfOptimizer`, `guardedVectorBackend`) for activation; **today only `gnnService` and `rvfOptimizer` are actually ON** (verified 2026-06-04, ADR-0294 X1). `mutationGuard`, `attestationLog`, and `guardedVectorBackend` remain OFF. Separately, `semanticRouter` (a Level-4 controller, not part of the G7 five) is ON but self-inert until routes are configured.
 
-## G7 controllers (activated by ADR-095)
+## G7 controllers (ADR-095 targets — actual live state per ADR-0294 X1)
 
-[ADR-095](../../v3/docs/adr/ADR-095-architectural-gaps-from-april-audit.md) closed five previously-disabled AgentDB controllers:
+[ADR-095](../../v3/docs/adr/ADR-095-architectural-gaps-from-april-audit.md) targeted five previously-disabled AgentDB controllers; the **State** column records what is actually enabled in the fork today (2 of 5 ON):
 
-| Controller | Role | Source |
-|---|---|---|
-| `gnnService` | Graph Neural Network embeddings + relational scoring over the AgentDB causal graph. No-arg construction. | `agentdb/dist/src/services/GNNService.js` |
-| `rvfOptimizer` | RuVector format compaction — quantizes + dedupes vector blocks before persistence. | `agentdb/dist/src/optimizations/RVFOptimizer.js` |
-| `mutationGuard` | WASM-backed proof generation for state mutations (ADR-060). | `agentdb/dist/src/security/MutationGuard.js` |
-| `attestationLog` | Hash-chained audit log of mutations. Backed by a dedicated `.swarm/attestation.db`. | `agentdb/dist/src/security/AttestationLog.js` |
-| `GuardedVectorBackend` | Wraps the existing vectorBackend with `mutationGuard` + `attestationLog`. | `agentdb/dist/src/backends/ruvector/GuardedVectorBackend.js` |
+| Controller | State | Role | Source |
+|---|---|---|---|
+| `gnnService` | **ON** | Graph Neural Network embeddings + relational scoring over the AgentDB causal graph. No-arg construction. | `agentdb/dist/src/services/GNNService.js` |
+| `rvfOptimizer` | **ON** | RuVector format compaction — quantizes + dedupes vector blocks before persistence. | `agentdb/dist/src/optimizations/RVFOptimizer.js` |
+| `mutationGuard` | OFF | WASM-backed proof generation for state mutations (ADR-060). | `agentdb/dist/src/security/MutationGuard.js` |
+| `attestationLog` | OFF | Hash-chained audit log of mutations. Backed by a dedicated `.swarm/attestation.db`. | `agentdb/dist/src/security/AttestationLog.js` |
+| `GuardedVectorBackend` | OFF | Wraps the existing vectorBackend with `mutationGuard` + `attestationLog`. | `agentdb/dist/src/backends/ruvector/GuardedVectorBackend.js` |
 
 ## Commands
 

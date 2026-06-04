@@ -347,7 +347,9 @@ export const memoryTools: MCPTool[] = [
           storedAt: storedAt || new Date().toISOString(),
           hasEmbedding,
           embeddingDimensions,
-          backend: 'archivist (RVF + HNSW)',
+          // ADR-0294 X2: ONE truthful vector/memory-axis label everywhere
+          // (ADR-0257 canonical form). Was 'archivist (RVF + HNSW)'.
+          backend: 'RVF + HNSW',
           storeTime: `${duration.toFixed(2)}ms`,
         };
       } catch (error) {
@@ -419,7 +421,7 @@ export const memoryTools: MCPTool[] = [
             accessCount: entry.accessCount,
             hasEmbedding: entry.hasEmbedding,
             found: true,
-            backend: 'SQLite + HNSW',
+            backend: 'RVF + HNSW', // ADR-0294 X2: unify (was 'SQLite + HNSW')
           };
           // ADR-0180 §Provenance rollout scope (Phase 3, 2026-05-14):
           // memory_retrieve is a single-entry exact (namespace, key) lookup.
@@ -685,7 +687,7 @@ export const memoryTools: MCPTool[] = [
           results: shapedResults,
           total: shapedResults.length,
           searchTime: `${duration.toFixed(2)}ms`,
-          backend: 'HNSW + SQLite',
+          backend: 'RVF + HNSW', // ADR-0294 X2: unify (was 'HNSW + SQLite')
           attention: attentionApplied,
           ...(synthesis ? { synthesis } : {}),
         };
@@ -741,7 +743,7 @@ export const memoryTools: MCPTool[] = [
           namespace,
           deleted: !!result.deleted,
           hnswIndexInvalidated: !!result.deleted,
-          backend: 'SQLite + HNSW',
+          backend: 'RVF + HNSW', // ADR-0294 X2: unify (was 'SQLite + HNSW')
         };
       } catch (error) {
         return {
@@ -841,7 +843,7 @@ export const memoryTools: MCPTool[] = [
           total: (result.total as number) || 0,
           limit,
           offset,
-          backend: 'SQLite + HNSW',
+          backend: 'RVF + HNSW', // ADR-0294 X2: unify (was 'SQLite + HNSW')
         };
       } catch (error) {
         return {
@@ -950,7 +952,7 @@ export const memoryTools: MCPTool[] = [
         success: true,
         message: 'Migration completed',
         migrated: Object.keys(legacyStore.entries).length,
-        backend: 'SQLite + HNSW',
+        backend: 'RVF + HNSW', // ADR-0294 X2: unify (was 'SQLite + HNSW')
       };
     },
   },
@@ -1158,7 +1160,23 @@ export const memoryTools: MCPTool[] = [
 
       const claudeCode = { memoryFiles: claudeFiles, projects: claudeProjects };
       const agentdb = { totalEntries: agentdbEntries, claudeMemoryEntries, backend: 'SQLite + ONNX' };
-      const bridge = { status: claudeMemoryEntries > 0 ? 'connected' : 'not-synced', embedding: 'all-MiniLM-L6-v2 (384-dim)' };
+      // ADR-0294 X2: report the LIVE embedding model dynamically (never the
+      // stale `all-MiniLM-L6-v2 (384-dim)` literal — the fork's live store is
+      // Xenova/all-mpnet-base-v2 768-dim, ADR-0052). Read agentdb's resolved
+      // embedding config; fall back to the fork default (full model name per
+      // feedback-full-model-names) only if the accessor is unavailable.
+      let embeddingLabel = 'Xenova/all-mpnet-base-v2 (768-dim)';
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const agentdbModule: any = await import('agentdb');
+        if (typeof agentdbModule.getEmbeddingConfig === 'function') {
+          const embCfg = agentdbModule.getEmbeddingConfig();
+          const model = embCfg?.model ?? 'Xenova/all-mpnet-base-v2';
+          const dim = embCfg?.dimension ?? embCfg?.dim;
+          embeddingLabel = dim ? `${model} (${dim}-dim)` : String(model);
+        }
+      } catch { /* accessor unavailable — keep the fork-default full model name */ }
+      const bridge = { status: claudeMemoryEntries > 0 ? 'connected' : 'not-synced', embedding: embeddingLabel };
 
       if (includeProvenance) {
         // ADR-0180 §Architecture · Read-path return shape: RankedResults<BridgeStatusEntry>.

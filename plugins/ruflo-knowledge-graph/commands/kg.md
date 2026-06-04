@@ -8,7 +8,7 @@ Knowledge graph commands:
 1. Scan files at `<path>` recursively for classes, functions, modules, types, and config references
 2. For each entity, record its type, name, file location, and description
 3. Map relations between entities: imports, extends, implements, depends-on, calls, references
-4. Store entities via `mcp__ruflo__agentdb_hierarchical-store` in the `knowledge-graph` namespace
+4. Store entities via `mcp__ruflo__agentdb_hierarchical-store` in the `kg-graph` namespace
 5. Create causal edges via `mcp__ruflo__agentdb_causal-edge` for each relation
 6. Report: total entities found, total relations mapped, entity type breakdown
 
@@ -25,15 +25,17 @@ Knowledge graph commands:
 3. Display as a table with: relation, direction (incoming/outgoing), target entity, weight
 
 **`kg visualize`** -- Generate an ASCII visualization of the knowledge graph.
-1. Recall all entities and edges from the `knowledge-graph` namespace
+1. Recall all entities and edges from the `kg-graph` namespace
 2. Identify the most-connected nodes (top 10 by degree)
 3. Render a simplified graph showing key nodes and their connections
 4. Include legend with entity types and relation types
 
 **`kg search <query>`** -- Semantic search across the knowledge graph.
-1. Find relevant entities via `mcp__ruflo__agentdb_pattern-search` (the disabled
-   `agentdb_semantic-route` controller was retired upstream per #2049 — it
-   returns "SemanticRouter not available in current agentdb build")
+1. Find relevant entities via `mcp__ruflo__agentdb_pattern-search`. (`agentdb_semantic-route`
+   is not used for kg search: with no routes configured it returns an honest
+   no-routes envelope — `{success:false, error:"No semantic routes configured",
+   recommendation:"Use agentdb_route"}`, per ADR-0294 O2 — so pattern-search is
+   the right primitive here.)
 2. Expand results with causal edges to show related context
 3. Rank by semantic similarity score
 4. Display matches with entity name, type, file location, and relevance score
