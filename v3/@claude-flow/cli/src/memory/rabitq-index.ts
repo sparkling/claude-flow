@@ -65,29 +65,38 @@ async function loadRabitqModule(): Promise<{
       return null;
     }
 
-    // ADR-0294 R3 pre-flight (ADR-0293 D1 shape-detection pattern): rabitq-wasm
-    // 0.1.0 is a LEGACY wasm-bindgen build — `initSync(module)` synchronously
-    // instantiates, `init()` is only a panic-hook installer (NOT instantiation).
-    // If a future build flips to the auto-instantiate shape (default __wbg_init
-    // that already instantiated; no `initSync`), detect it and fail loud instead
-    // of letting `mod.initSync(...)` throw an opaque "is not a function".
-    const { createRequire } = await import('module');
-    const require = createRequire(import.meta.url);
-    const wasmPath = require.resolve('@ruvector/rabitq-wasm/ruvector_rabitq_wasm_bg.wasm');
-    const wasmBytes = fs.readFileSync(wasmPath);
-
+    // ADR-0294 R3 pre-flight (ADR-0293 D1 shape-detection pattern). wasm-bindgen
+    // emits THREE shapes depending on the build target; the wrapper must accept
+    // all of them so it works against the published mirror AND any future
+    // pipeline rebuild target:
+    //   1. `--target web` LEGACY (upstream 0.1.0, the published mirror):
+    //      `initSync({ module })` synchronously instantiates from bytes;
+    //      `init()` is only a panic-hook installer (NOT instantiation).
+    //   2. `--target web` AUTO-INSTANTIATE (the ADR-0293 D1 ruvllm-wasm shape):
+    //      a default `__wbg_init` that already kicked off; no `initSync`.
+    //   3. `--target nodejs` (what scripts/wasm-rebuild.sh emits): the module
+    //      synchronously `new WebAssembly.Instance(...)`s at import time and
+    //      exposes `RabitqIndex`/`version` immediately — NO `initSync`, NO
+    //      `default`. Already ready; no init call needed.
     if (typeof mod.initSync === 'function') {
-      // Legacy shape (current 0.1.0): explicit synchronous instantiation.
-      mod.initSync({ module: wasmBytes });
-    } else if (typeof mod.default === 'function' && typeof mod.RabitqIndex === 'function') {
-      // Auto-instantiate shape: the default export already instantiated on
-      // import; await it defensively so a Response/bytes form is honoured.
+      // Shape 1 — read the wasm bytes only when initSync needs them.
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      const wasmPath = require.resolve('@ruvector/rabitq-wasm/ruvector_rabitq_wasm_bg.wasm');
+      mod.initSync({ module: fs.readFileSync(wasmPath) });
+    } else if (typeof mod.default === 'function') {
+      // Shape 2 — await the default initializer defensively (idempotent if it
+      // already auto-instantiated on import).
       await mod.default();
+    } else if (typeof mod.RabitqIndex === 'function' && typeof mod.version === 'function') {
+      // Shape 3 — nodejs target: already instantiated at import, ready to use.
+      // No init call. (Verified: RabitqIndex.build works with no init.)
     } else {
       throw new Error(
-        '@ruvector/rabitq-wasm loaded but exposes neither initSync (legacy) nor a ' +
-        'default-init + RabitqIndex (auto-instantiate) shape — WASM export skew ' +
-        '(cf. ADR-0293 D1). Pin a compatible @ruvector/rabitq-wasm build.',
+        '@ruvector/rabitq-wasm loaded but exposes none of: initSync (web legacy), ' +
+        'default-init (web auto-instantiate), or a ready RabitqIndex+version ' +
+        '(nodejs target) — WASM export skew (cf. ADR-0293 D1). Pin a compatible ' +
+        '@ruvector/rabitq-wasm build.',
       );
     }
 
