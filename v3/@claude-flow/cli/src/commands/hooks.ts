@@ -2723,9 +2723,14 @@ const workerDispatchCommand: Command = {
     { name: 'sync', short: 's', type: 'boolean', description: 'Wait for completion (synchronous)' },
   ],
   examples: [
-    { command: 'claude-flow hooks worker dispatch -t optimize -c src/', description: 'Dispatch optimize worker' },
-    { command: 'claude-flow hooks worker dispatch -t audit -p critical', description: 'Security audit with critical priority' },
-    { command: 'claude-flow hooks worker dispatch -t testgaps --sync', description: 'Test coverage analysis (sync)' },
+    // ADR-0297 RIDER (ADR-0296 DA settlement): use long flags. `hooks worker
+    // dispatch` is a level-2 nested subcommand; the short-flag aliases
+    // (-t/-c/-p) hit a scoped-alias depth-1 collision, so the documented
+    // short-flag examples don't parse. Long forms are unambiguous. (Docs-only;
+    // the parser is unchanged.)
+    { command: 'claude-flow hooks worker dispatch --trigger optimize --context src/', description: 'Dispatch optimize worker' },
+    { command: 'claude-flow hooks worker dispatch --trigger audit --priority critical', description: 'Security audit with critical priority' },
+    { command: 'claude-flow hooks worker dispatch --trigger testgaps --sync', description: 'Test coverage analysis (sync)' },
   ],
   action: async (ctx: CommandContext): Promise<CommandResult> => {
     const trigger = ctx.flags['trigger'] as string;
@@ -2928,8 +2933,10 @@ const workerDetectCommand: Command = {
     { name: 'min-confidence', short: 'm', type: 'string', description: 'Minimum confidence threshold (0-1)' },
   ],
   examples: [
-    { command: 'claude-flow hooks worker detect -p "optimize performance"', description: 'Detect triggers in prompt' },
-    { command: 'claude-flow hooks worker detect -p "security audit" --auto-dispatch', description: 'Detect and dispatch' },
+    // ADR-0297 RIDER: long flags — `hooks worker detect` is a level-2 nested
+    // subcommand whose short-flag aliases hit the same depth-1 collision.
+    { command: 'claude-flow hooks worker detect --prompt "optimize performance"', description: 'Detect triggers in prompt' },
+    { command: 'claude-flow hooks worker detect --prompt "security audit" --auto-dispatch', description: 'Detect and dispatch' },
   ],
   action: async (ctx: CommandContext): Promise<CommandResult> => {
     const prompt = ctx.flags['prompt'] as string;
@@ -4002,9 +4009,10 @@ const workerCommand: Command = {
   ],
   options: [],
   examples: [
+    // ADR-0297 RIDER: long flags for the nested worker subcommand examples.
     { command: 'claude-flow hooks worker list', description: 'List all workers' },
-    { command: 'claude-flow hooks worker dispatch -t optimize', description: 'Dispatch optimizer' },
-    { command: 'claude-flow hooks worker detect -p "test coverage"', description: 'Detect from prompt' },
+    { command: 'claude-flow hooks worker dispatch --trigger optimize', description: 'Dispatch optimizer' },
+    { command: 'claude-flow hooks worker detect --prompt "test coverage"', description: 'Detect from prompt' },
   ],
   action: async (): Promise<CommandResult> => {
     output.writeln();
