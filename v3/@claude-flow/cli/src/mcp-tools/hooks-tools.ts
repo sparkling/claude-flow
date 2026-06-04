@@ -1642,6 +1642,11 @@ export const hooksPostTask: MCPTool = {
       agent: { type: 'string', description: 'Agent that completed the task' },
       quality: { type: 'number', description: 'Quality score (0-1)' },
       task: { type: 'string', description: 'Task description text (used for learning keyword extraction)' },
+      taskType: {
+        type: 'string',
+        description: 'Explicit task type (deriveTaskType tier 1). ADR-0290 metadata-only producers derive this from the description at the CLI boundary and forward only the label — the raw text never reaches this handler.',
+      },
+      sessionId: { type: 'string', description: 'Session identifier recorded on the episode (defaults to taskId)' },
       storeDecisions: { type: 'boolean', description: 'Also store routing decision in memory DB' },
     },
     required: ['taskId'],
@@ -1747,13 +1752,26 @@ export const hooksPostTask: MCPTool = {
     try {
       const { getProcessArchivist, ensureSqliteWired } = await import('../memory/archivist-init.js');
       const { deriveTaskType } = await import('../learning/derive-task-type.js');
-      const taskText = (params.task as string) || taskId;
+      const rawTask = (params.task as string) || '';
       const taskType = deriveTaskType({
         taskType: params.taskType as string | undefined,
         type: params.type as string | undefined,
         agentType: typeof params.agent === 'string' && params.agent ? params.agent : undefined,
-        description: taskText,
+        description: rawTask || taskId,
       });
+      // ADR-0290 Phase 1: with no raw task text (the metadata-only hook-driven
+      // path forwards only the CLI-derived taskType), the episode's task label
+      // is the derived task_type — a controlled-vocabulary slug. Versus the
+      // prior per-call taskId fallback this (a) keeps NightlyLearner's causal
+      // pair-discovery / propensity math grouped at type granularity instead
+      // of degenerate unique-per-episode strings, and (b) stays PII-free while
+      // satisfying the archivist taskWellFormed non-empty invariant.
+      const taskText = rawTask || taskType;
+      // No semantic free-text content → nothing to embed. Skip the embedding
+      // (+ vector/graph index writes) in ReflexionMemory: honors ADR-0287
+      // F10 constraint (4) — no per-task mpnet embed in the capture path; the
+      // SQLite row stays fully visible to all SQL-side learning consumers.
+      const hasSemanticContent = Boolean(rawTask || (params.output as string));
       const qualityProvided = params.quality !== undefined && params.quality !== null;
       const episodeReward = qualityProvided ? quality : success ? 0.6 : 0.2;
       // ADR-0279: record the action taken — the model the caller used when
@@ -1777,6 +1795,7 @@ export const hooksPostTask: MCPTool = {
           reward: episodeReward,
           success,
           ...(episodeAction ? { action: episodeAction } : {}),
+          ...(hasSemanticContent ? {} : { skip_embedding: true }),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any,
       );

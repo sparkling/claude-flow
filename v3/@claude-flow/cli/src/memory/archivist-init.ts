@@ -517,6 +517,8 @@ function makeCliReflexionStoreWriter(): ReflexionStoreWriter {
           // previously dropped it, so ts only flowed incidentally via per-call
           // subprocess latency — explicit ts now reaches episodes.ts).
           action: input.action, // ADR-0279: forward the action (model/agent) taken
+          skipEmbedding: input.skipEmbedding, // ADR-0290: metadata-only episode —
+          // skip embedding + vector/graph index writes (no semantic content).
         });
         let timer: NodeJS.Timeout | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {

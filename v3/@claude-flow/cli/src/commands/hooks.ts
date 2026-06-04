@@ -1926,11 +1926,23 @@ const postTaskCommand: Command = {
       short: 'a',
       description: 'Agent that executed the task',
       type: 'string'
+    },
+    {
+      name: 'task',
+      short: 't',
+      description: 'Task description — used ONLY to derive task_type (ADR-0290 Phase 1 metadata-only: the raw text is never forwarded or stored)',
+      type: 'string'
+    },
+    {
+      name: 'session',
+      description: 'Session identifier to record on the episode (defaults to task id)',
+      type: 'string'
     }
   ],
   examples: [
     { command: 'claude-flow hooks post-task -i task-123 --success true', description: 'Record successful completion' },
-    { command: 'claude-flow hooks post-task -i task-456 --success false -q 0.3', description: 'Record failed task' }
+    { command: 'claude-flow hooks post-task -i task-456 --success false -q 0.3', description: 'Record failed task' },
+    { command: 'claude-flow hooks post-task -i toolu_01 --success true -a coder -t "fix auth bug" --session sess-1', description: 'Hook-driven episode capture (ADR-0290)' }
   ],
   action: async (ctx: CommandContext): Promise<CommandResult> => {
     // Auto-generate task ID if not provided
@@ -1939,6 +1951,24 @@ const postTaskCommand: Command = {
     const success = ctx.flags.success !== undefined ? (ctx.flags.success as boolean) : true;
 
     output.printInfo(`Recording outcome for task: ${output.highlight(taskId)}`);
+
+    // ADR-0290 Phase 1: the CLI is the metadata-only boundary. The free-text
+    // description is consumed HERE to derive the stable task_type and is then
+    // dropped — only the derived label crosses into the MCP handler, so the
+    // automatic hook-driven pipeline physically never transports user text
+    // (PII-free by construction; ADR-0289 governs the later free-text phase).
+    // Derivation is DESCRIPTION-ONLY — deliberately not passing agentType —
+    // because deriveTaskType's tier 2 would otherwise resolve task_type to the
+    // agent slug, (a) diverging from the hooks_pre-task read side (which
+    // derives from description only, so skill retrieval would silently miss)
+    // and (b) collapsing task_type onto the action dimension, degenerating
+    // NightlyLearner's E[reward | action, task_type] uplift to 0.
+    let taskType: string | undefined;
+    const taskDescription = ctx.flags.task as string | undefined;
+    if (taskDescription && taskDescription.trim()) {
+      const { deriveTaskType } = await import('../learning/derive-task-type.js');
+      taskType = deriveTaskType({ description: taskDescription });
+    }
 
     try {
       const result = await callMCPTool<{
@@ -1955,6 +1985,8 @@ const postTaskCommand: Command = {
         success,
         quality: ctx.flags.quality,
         agent: ctx.flags.agent,
+        ...(taskType ? { taskType } : {}),
+        ...(ctx.flags.session ? { sessionId: ctx.flags.session as string } : {}),
         timestamp: Date.now(),
       });
 
