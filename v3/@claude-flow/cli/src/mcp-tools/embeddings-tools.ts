@@ -984,4 +984,129 @@ export const embeddingsTools: MCPTool[] = [
       };
     },
   },
+
+  // ===== ADR-0294 R3: RaBitQ 1-bit quantized vector pre-filter (32× compression) =====
+  //
+  // The fork retained a real 205-line wrapper (memory/rabitq-index.ts wrapping
+  // @ruvector/rabitq-wasm) but never registered these 3 MCP tools, so the
+  // advertised capability was unreachable — while upstream ships them working
+  // (docs/research/c2-memory-data/02-fork-diff.md §FORK-REGRESSION #3). Surface
+  // mirrors upstream's schemas verbatim (status: no args; build: {force};
+  // search: {query, k, namespace}). The wrapper reads embeddings via the
+  // RVF-first memory-router (no raw SQLite shadow read), so build operates over
+  // the live mpnet-768 store.
+  {
+    name: 'embeddings_rabitq_status',
+    description:
+      'RaBitQ 1-bit quantized index status (32× compression pre-filter over stored embeddings). ' +
+      'Reports whether the index is built, its vector count, dimensions, and compression ratio.',
+    category: 'embeddings',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+    handler: async () => {
+      try {
+        const { getRabitqStatus } = await import('../memory/rabitq-index.js');
+        const status = getRabitqStatus();
+        return { success: true, ...status };
+      } catch (e) {
+        return { success: false, error: `RaBitQ status failed: ${(e as Error)?.message || String(e)}` };
+      }
+    },
+  },
+
+  {
+    name: 'embeddings_rabitq_build',
+    description:
+      'Build (or rebuild) the RaBitQ 1-bit quantized index from the live embedding store. ' +
+      'Requires ≥2 stored vectors. Returns a compression envelope (vectorCount, ' +
+      'compressionRatio, buildTimeMs). 32× compression for 768-dim embeddings.',
+    category: 'embeddings',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        force: {
+          type: 'boolean',
+          description: 'Force a rebuild even if the index appears fresh',
+        },
+      },
+    },
+    handler: async (input) => {
+      const config = loadConfig();
+      if (!config) {
+        return { success: false, error: 'Embeddings not initialized. Run embeddings/init first.' };
+      }
+      try {
+        const { buildRabitqIndex } = await import('../memory/rabitq-index.js');
+        // Dimension flows from the live embeddings config (mpnet-768) — never a
+        // hardcoded literal (ADR-0072). force is passed through to the wrapper.
+        const result = await buildRabitqIndex({
+          dimensions: config.dimension,
+          force: input.force === true,
+        });
+        return result;
+      } catch (e) {
+        return { success: false, error: `RaBitQ build failed: ${(e as Error)?.message || String(e)}` };
+      }
+    },
+  },
+
+  {
+    name: 'embeddings_rabitq_search',
+    description:
+      'Search the RaBitQ index for nearest neighbours (Hamming pre-scan → exact rerank). ' +
+      'Returns ranked candidate entries. The index must be built first (embeddings_rabitq_build).',
+    category: 'embeddings',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query text' },
+        k: { type: 'number', description: 'Number of results to return', default: 10 },
+        namespace: { type: 'string', description: 'Restrict to a namespace (omit/"all" for any)' },
+      },
+      required: ['query'],
+    },
+    handler: async (input) => {
+      const config = loadConfig();
+      if (!config) {
+        return { success: false, error: 'Embeddings not initialized. Run embeddings/init first.' };
+      }
+      const query = input.query as string;
+      if (!query || typeof query !== 'string') {
+        return { success: false, error: 'query is required (non-empty string)' };
+      }
+      const k = (input.k as number) || 10;
+      const namespace = input.namespace as string | undefined;
+      try {
+        const { searchRabitq } = await import('../memory/rabitq-index.js');
+        // Generate the query embedding via the same real ONNX path the other
+        // embeddings_* tools use, then Hamming-scan the quantized index.
+        const queryEmbedding = await generateRealEmbedding(query, config.dimension);
+        const results = await searchRabitq(queryEmbedding, { k, namespace });
+        if (results === null) {
+          // Honest: index not built (or query-dim mismatch). NOT a silent empty.
+          return {
+            success: false,
+            query,
+            error: 'RaBitQ index not built — run embeddings_rabitq_build first (needs ≥2 stored vectors).',
+            results: [],
+          };
+        }
+        return {
+          success: true,
+          query,
+          results: results.map((r) => ({
+            id: r.id,
+            key: r.key,
+            namespace: r.namespace,
+            distance: r.distance,
+          })),
+          count: results.length,
+        };
+      } catch (e) {
+        return { success: false, query, error: `RaBitQ search failed: ${(e as Error)?.message || String(e)}` };
+      }
+    },
+  },
 ];

@@ -36,29 +36,71 @@ const REBUILD_DRIFT_THRESHOLD = 0.2; // rebuild when count drifts >20%
 let rabitqState: RabitqState | null = null;
 let rabitqInitializing = false;
 
+/**
+ * Distinguishes "the package is not installed" (a benign capability-absent
+ * state → null) from "the package is installed but its WASM export shape skewed"
+ * (a real defect → throw, fail-loud per feedback-no-fallbacks). The earlier
+ * blanket `catch { return null }` masked the second class — exactly the
+ * ADR-0293 D1 failure mode (ruvllm-wasm switched to an auto-instantiate build
+ * exporting only `init()`; `mod.initSync` became undefined and every call died
+ * with a swallowed `TypeError`).
+ */
+let _rabitqLoad: Promise<{ RabitqIndex: any; version: () => string } | null> | null = null;
+
 async function loadRabitqModule(): Promise<{
   RabitqIndex: any;
-  initSync: (m: any) => any;
   version: () => string;
 } | null> {
-  try {
-    const mod = await import('@ruvector/rabitq-wasm');
+  // Memoize: the WASM is instantiated once per process (initSync mutates a
+  // module-global instance; re-running it is wasteful and the wrapper already
+  // holds the built index in rabitqState).
+  if (_rabitqLoad) return _rabitqLoad;
+  _rabitqLoad = (async () => {
+    let mod: any;
+    try {
+      mod = await import('@ruvector/rabitq-wasm');
+    } catch {
+      // Package genuinely absent (not declared / not installed). Capability is
+      // honestly unavailable — the caller surfaces a clear envelope. NOT a defect.
+      return null;
+    }
 
-    // Node.js: use initSync with the WASM bytes
+    // ADR-0294 R3 pre-flight (ADR-0293 D1 shape-detection pattern): rabitq-wasm
+    // 0.1.0 is a LEGACY wasm-bindgen build — `initSync(module)` synchronously
+    // instantiates, `init()` is only a panic-hook installer (NOT instantiation).
+    // If a future build flips to the auto-instantiate shape (default __wbg_init
+    // that already instantiated; no `initSync`), detect it and fail loud instead
+    // of letting `mod.initSync(...)` throw an opaque "is not a function".
     const { createRequire } = await import('module');
     const require = createRequire(import.meta.url);
     const wasmPath = require.resolve('@ruvector/rabitq-wasm/ruvector_rabitq_wasm_bg.wasm');
     const wasmBytes = fs.readFileSync(wasmPath);
-    mod.initSync({ module: wasmBytes });
 
-    return {
-      RabitqIndex: mod.RabitqIndex,
-      initSync: mod.initSync,
-      version: mod.version,
-    };
-  } catch {
-    return null;
-  }
+    if (typeof mod.initSync === 'function') {
+      // Legacy shape (current 0.1.0): explicit synchronous instantiation.
+      mod.initSync({ module: wasmBytes });
+    } else if (typeof mod.default === 'function' && typeof mod.RabitqIndex === 'function') {
+      // Auto-instantiate shape: the default export already instantiated on
+      // import; await it defensively so a Response/bytes form is honoured.
+      await mod.default();
+    } else {
+      throw new Error(
+        '@ruvector/rabitq-wasm loaded but exposes neither initSync (legacy) nor a ' +
+        'default-init + RabitqIndex (auto-instantiate) shape — WASM export skew ' +
+        '(cf. ADR-0293 D1). Pin a compatible @ruvector/rabitq-wasm build.',
+      );
+    }
+
+    if (typeof mod.RabitqIndex !== 'function' || typeof mod.version !== 'function') {
+      throw new Error(
+        '@ruvector/rabitq-wasm initialized but RabitqIndex/version symbols are missing — ' +
+        'WASM build incompatible with the rabitq-index wrapper (ADR-0294 R3).',
+      );
+    }
+
+    return { RabitqIndex: mod.RabitqIndex, version: mod.version };
+  })();
+  return _rabitqLoad;
 }
 
 /**
