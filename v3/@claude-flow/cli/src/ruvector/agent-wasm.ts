@@ -157,13 +157,30 @@ export async function promptWasmAgent(agentId: string, input: string): Promise<s
 
   entry.info.state = 'running';
   try {
-    const wasmResult = await entry.agent.prompt(input);
+    const rawWasmResult = await entry.agent.prompt(input);
     entry.info.state = 'idle';
     syncAgentInfo(entry);
 
+    // ADR-0295 W1/W2: the live @ruvector/rvagent-wasm build returns its echo
+    // as an OBJECT `{ response: "echo: <input>" }`, not the bare string the
+    // ADR-095 G4 stub-detection (and the MCP envelope) expect. That single
+    // shape skew defeated BOTH the no-key NOTE and the echo→Anthropic routing
+    // (isEchoStub was false for an object) AND surfaced `content[0].text` as
+    // an object on the MCP path. Normalize to a string here, at the one
+    // boundary, so the existing detection/NOTE/LLM-fallback all work and every
+    // consumer (MCP `text:` + CLI) gets text-as-string.
+    const wasmResult: string =
+      typeof rawWasmResult === 'string'
+        ? rawWasmResult
+        : rawWasmResult &&
+            typeof rawWasmResult === 'object' &&
+            typeof (rawWasmResult as { response?: unknown }).response === 'string'
+          ? (rawWasmResult as { response: string }).response
+          : JSON.stringify(rawWasmResult);
+
     // Detect the WASM echo stub.
-    const isEchoStub = typeof wasmResult === 'string' &&
-      (wasmResult === `echo: ${input}` || /^echo: /.test(wasmResult.slice(0, 12)));
+    const isEchoStub =
+      wasmResult === `echo: ${input}` || /^echo: /.test(wasmResult.slice(0, 12));
 
     if (!isEchoStub) {
       return wasmResult;
