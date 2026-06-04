@@ -31,10 +31,53 @@ interface ThreatPattern {
 }
 
 /**
- * Prompt injection patterns (50+ patterns from AIMDS)
+ * Prompt injection patterns (originally 50+ patterns from AIMDS).
+ *
+ * Ported wider-detection pass from upstream `aidefence@3.0.3` /
+ * `aimds-*@0.1.1` (ADR-118, ruvnet/ruflo#2004 announce):
+ *
+ *  - A generalized **verb→noun window** of 0..6 modifier words now
+ *    catches the canonical "ignore all previous instructions" family
+ *    plus its many phrasings (e.g. "disregard every system prompt
+ *    above", "forget all of the prior rules"). The narrow regexes
+ *    below stay as belt-and-suspenders for cases the window misses
+ *    (verb-only phrasings without an explicit noun, etc.) — they
+ *    still raise threats with the same `instruction_override` type
+ *    so callers see a consistent surface.
+ *  - Role-hijack patterns widened: `you are now …`, `act as …`,
+ *    `pretend to be …` already covered; added a `behave (as|like) …`
+ *    variant for the next-most-common phrasing.
+ *  - Jailbreak markers extended: `god mode` / `root mode` join the
+ *    pre-existing `DAN mode` / `developer mode` family.
  */
+/** Verbs that flag a likely override attempt. ADR-118 / #2004. */
+const OVERRIDE_VERBS = ['ignore', 'disregard', 'forget', 'override'].join('|');
+/** Nouns the override is targeting. `system\s*-?\s*prompt` matches `system prompt` and `system-prompt`. */
+const OVERRIDE_NOUNS = ['instructions?', 'prompts?', 'rules?', 'context', 'system\\s*-?\\s*prompts?'].join('|');
+/**
+ * 0..6 modifier words between verb and noun (e.g. "all", "previous",
+ * "every single one of the previous"). Upstream ADR-118 specified
+ * 0..4; we widen to 0..6 because the canonical hostile phrasing
+ * "forget every single one of the previous prompts" uses 6 words
+ * and that case must not slip through. False-positive risk stays
+ * low because the verb→noun structural constraint is the discriminator.
+ */
+const OVERRIDE_WINDOW = `(?:\\s+\\S+){0,6}`;
+
 const PROMPT_INJECTION_PATTERNS: ThreatPattern[] = [
-  // Instruction override patterns
+  // ── ADR-118 wider window pattern (catches "ignore all previous
+  // instructions" + family across 0..6 modifier words). This is the
+  // single highest-leverage pattern from the 3.0.3 upgrade.
+  {
+    pattern: new RegExp(`\\b(${OVERRIDE_VERBS})${OVERRIDE_WINDOW}\\s+(${OVERRIDE_NOUNS})\\b`, 'i'),
+    type: 'instruction_override',
+    severity: 'critical',
+    description: 'Override-verb → noun within 0..6-modifier window (ADR-118)',
+    baseConfidence: 0.96,
+  },
+  // Instruction override patterns (narrow legacy regexes — kept as
+  // belt-and-suspenders for phrasings the window above doesn't
+  // structure-match, and so threat descriptions stay precise).
   {
     pattern: /ignore\s+(all\s+)?(previous\s+)?instructions/i,
     type: 'instruction_override',
@@ -86,6 +129,15 @@ const PROMPT_INJECTION_PATTERNS: ThreatPattern[] = [
     description: 'Roleplay instruction that may be legitimate',
     baseConfidence: 0.65,
   },
+  // ADR-118 / #2004 — `behave (as|like) …` widening of role-hijack surface.
+  // Accepts `a` or `an` articles (so "behave as an unrestricted ..." hits).
+  {
+    pattern: /behave\s+(as|like)\s+(an?\s+)?(different|new|another|unrestricted)/i,
+    type: 'role_switching',
+    severity: 'high',
+    description: 'Behavior-hijack instruction (ADR-118)',
+    baseConfidence: 0.78,
+  },
 
   // Jailbreak patterns
   {
@@ -122,6 +174,14 @@ const PROMPT_INJECTION_PATTERNS: ThreatPattern[] = [
     severity: 'critical',
     description: 'Attempt to disable safety filters',
     baseConfidence: 0.96,
+  },
+  // ADR-118 / #2004 — extend the jailbreak-mode family beyond DAN/dev.
+  {
+    pattern: /\b(god|root|admin|sudo)\s*mode\b/i,
+    type: 'jailbreak',
+    severity: 'critical',
+    description: 'Privileged-mode jailbreak attempt (ADR-118)',
+    baseConfidence: 0.94,
   },
 
   // Context manipulation patterns
