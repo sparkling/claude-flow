@@ -27,14 +27,19 @@ Agent teams, swarm coordination, Monitor streams, and worktree isolation.
 - **CLI:** pinned to `@sparkleideas/cli` v3.6 major+minor.
 - **Verification:** `bash plugins/ruflo-swarm/scripts/smoke.sh` is the contract.
 
-## MCP surface (12 tools)
+## MCP surface (13 tools)
 
 | Family | Count | Tools |
 |--------|------:|-------|
-| `swarm_*` | 4 | `swarm_init`, `swarm_status`, `swarm_shutdown`, `swarm_health` |
+| `swarm_*` | 5 | `swarm_init`, `swarm_status`, `swarm_shutdown`, `swarm_health`, `swarm_scale` |
 | `agent_*` | 8 | `agent_spawn`, `agent_execute`, `agent_terminate`, `agent_status`, `agent_list`, `agent_pool`, `agent_health`, `agent_update` |
 
-Sources: `v3/@sparkleideas/cli/src/mcp-tools/swarm-tools.ts:71, 145, 208, 270` and `agent-tools.ts:182, 287, 319, 356, 395, 451, 573, 651`.
+Sources: `v3/@sparkleideas/cli/src/mcp-tools/swarm-tools.ts` and `agent-tools.ts`.
+
+> `swarm_scale` adjusts the swarm's `maxAgents` capacity (scaling *intent*) — it
+> does **not** spawn or despawn agents itself; it mutates the registry bound that
+> later `agent_spawn` calls (and the coordination layer) respect. The fork wires
+> a real handler where upstream lists it as a catalog phantom (`-32601` live).
 
 ## Built-in Claude Code coordination tools
 

@@ -1,6 +1,6 @@
 ---
 id: ADR-0001
-title: ruflo-swarm plugin contract — pinning, namespace coordination, MCP surface (4 swarm_* + 8 agent_*), Monitor streaming, smoke as contract
+title: ruflo-swarm plugin contract — pinning, namespace coordination, MCP surface (5 swarm_* + 8 agent_*), Monitor streaming, smoke as contract
 status: Proposed
 date: 2026-05-04
 authors:
@@ -16,7 +16,7 @@ Wraps **12 MCP tools** across two families:
 
 | Family | Count | Source |
 |--------|-------|--------|
-| `swarm_*` | 4 (`init`, `status`, `shutdown`, `health`) | `v3/@sparkleideas/cli/src/mcp-tools/swarm-tools.ts:71, 145, 208, 270` |
+| `swarm_*` | 5 (`init`, `status`, `shutdown`, `health`, `scale`) | `v3/@sparkleideas/cli/src/mcp-tools/swarm-tools.ts` |
 | `agent_*` | 8 (`spawn`, `execute`, `terminate`, `status`, `list`, `pool`, `health`, `update`) | `v3/@sparkleideas/cli/src/mcp-tools/agent-tools.ts:182, 287, 319, 356, 395, 451, 573, 651` |
 
 Plus the Monitor + Task tools from Claude Code (built-in: `Task`, `TaskList`, `TaskGet`, `TaskUpdate`, `Monitor`, etc.) which pair with this plugin for live streaming.
@@ -24,9 +24,9 @@ Plus the Monitor + Task tools from Claude Code (built-in: `Task`, `TaskList`, `T
 ## Decision
 
 1. Add this ADR (Proposed).
-2. README augment: Compatibility (pin v3.6); 12-tool MCP surface table; Monitor/Task built-in cross-reference; Anti-drift guidance (hierarchical topology, max 8 agents per CLAUDE.md); Namespace coordination (claims `swarm-state`); Verification + Architecture Decisions sections.
+2. README augment: Compatibility (pin v3.6); 13-tool MCP surface table; Monitor/Task built-in cross-reference; Anti-drift guidance (hierarchical topology, max 8 agents per CLAUDE.md); Namespace coordination (claims `swarm-state`); Verification + Architecture Decisions sections.
 3. Bump `0.1.0 → 0.2.0`. Keywords add `mcp`, `topologies`, `worktree-isolation`, `monitor-stream`.
-4. `scripts/smoke.sh` — 11 structural checks: version + keywords; both skills + 2 agents + 2 commands; all 4 `swarm_*` tools referenced; all 8 `agent_*` tools referenced; v3.6 pin; namespace coordination; anti-drift defaults documented (hierarchical/specialized/raft); Monitor/Task built-in cross-reference; ADR Proposed; no wildcard tools.
+4. `scripts/smoke.sh` — 11 structural checks: version + keywords; both skills + 2 agents + 2 commands; all 5 `swarm_*` tools referenced; all 8 `agent_*` tools referenced; v3.6 pin; namespace coordination; anti-drift defaults documented (hierarchical/specialized/raft); Monitor/Task built-in cross-reference; ADR Proposed; no wildcard tools.
 
 ## Consequences
 
@@ -46,5 +46,5 @@ bash plugins/ruflo-swarm/scripts/smoke.sh
 - `plugins/ruflo-agentdb/docs/adrs/0001-agentdb-optimization.md` — namespace convention
 - `plugins/ruflo-autopilot/docs/adrs/0001-autopilot-contract.md` — 270s cache-aware /loop heartbeat for swarm coordination
 - `plugins/ruflo-intelligence/docs/adrs/0001-intelligence-surface-completeness.md` — `hooks_route` powers swarm agent recommendation
-- `v3/@sparkleideas/cli/src/mcp-tools/swarm-tools.ts` — 4 `swarm_*` tools
+- `v3/@sparkleideas/cli/src/mcp-tools/swarm-tools.ts` — 5 `swarm_*` tools (incl. `swarm_scale`)
 - `v3/@sparkleideas/cli/src/mcp-tools/agent-tools.ts` — 8 `agent_*` tools

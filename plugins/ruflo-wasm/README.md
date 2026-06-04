@@ -31,11 +31,19 @@ Sandboxed WASM agent creation, execution, and gallery sharing.
 - **WASM runtime:** built on `@sparkleideas/ruvector-rvagent-wasm` + `@sparkleideas/ruvector-ruvllm-wasm`. Both are declared in `@sparkleideas/cli`'s `optionalDependencies` per [ADR-070 (Implemented)](../../v3/implementation/adrs/ADR-070-rvagent-wasm-completion.md). Without those packages, runtime falls through to the graceful-degradation path and the MCP tools no-op.
 - **Verification:** `bash plugins/ruflo-wasm/scripts/smoke.sh` is the contract.
 
-## MCP surface (10 tools)
+## MCP surface (27 tools)
 
-All defined at `v3/@sparkleideas/cli/src/mcp-tools/wasm-agent-tools.ts`:
+The live surface is **27 tools**: 14 `wasm_agent_*` + 13 `wasm_gallery_*`
+(ADR-129's full surface, ported fork-side via ADR-0254/0256/0266). The tables
+below list the primary tools; the remaining tools (`wasm_agent_state`,
+`wasm_agent_tools`, `wasm_agent_turn_count`, `wasm_agent_reset`,
+`wasm_agent_todos`, `wasm_agent_is_stopped`, `wasm_agent_compose`, and the
+`wasm_gallery_categories` / `_config` / `_active` / `_add_custom` / `_export` /
+`_import` / `_load_rvf` / `_configure` / `_remove_custom` / `_list_by_category`
+family) are defined alongside them at
+`v3/@sparkleideas/cli/src/mcp-tools/wasm-agent-tools.ts`.
 
-### Agent lifecycle (7)
+### Agent lifecycle — primary (7 of 14)
 
 | Tool | Purpose |
 |------|---------|
@@ -47,7 +55,7 @@ All defined at `v3/@sparkleideas/cli/src/mcp-tools/wasm-agent-tools.ts`:
 | `wasm_agent_files` | Read/write files in the sandbox |
 | `wasm_agent_export` | Export agent state |
 
-### Gallery (3)
+### Gallery — primary (3 of 13)
 
 | Tool | Purpose |
 |------|---------|
@@ -76,7 +84,7 @@ bash plugins/ruflo-wasm/scripts/smoke.sh
 
 ## Architecture Decisions
 
-- [`ADR-0001` — ruflo-wasm plugin contract (10-tool MCP surface, ADR-070 integration cross-reference, sandbox isolation, smoke as contract)](./docs/adrs/0001-wasm-contract.md)
+- [`ADR-0001` — ruflo-wasm plugin contract (27-tool MCP surface, ADR-070 integration cross-reference, sandbox isolation, smoke as contract)](./docs/adrs/0001-wasm-contract.md)
 
 ## Related Plugins
 

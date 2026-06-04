@@ -12,7 +12,9 @@ tags: [plugin, wasm, sandbox, gallery, namespace, smoke-test]
 
 `ruflo-wasm` (v0.1.0) — sandboxed WASM agent creation, execution, and gallery sharing. 1 agent (`wasm-specialist`), 2 skills (`wasm-agent`, `wasm-gallery`), 1 command (`/wasm`).
 
-Wraps **10 `wasm_*` MCP tools** at `v3/@sparkleideas/cli/src/mcp-tools/wasm-agent-tools.ts:18, 51, 74, 103, 117, 138, 160, 181, 195, 216`:
+Wraps the **27 `wasm_*` MCP tools** (14 `wasm_agent_*` + 13 `wasm_gallery_*` —
+ADR-129's full surface, ported fork-side via ADR-0254/0256/0266) defined at
+`v3/@sparkleideas/cli/src/mcp-tools/wasm-agent-tools.ts`. The primary tools:
 
 | Tool | Purpose |
 |------|---------|

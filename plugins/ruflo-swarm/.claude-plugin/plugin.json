@@ -1,6 +1,6 @@
 {
   "name": "ruflo-swarm",
-  "description": "Agent teams, swarm coordination, Monitor streams, and worktree isolation — wraps 4 swarm_* + 8 agent_* MCP tools (12 total) plus 6 topologies (hierarchical / mesh / hierarchical-mesh / ring / star / adaptive)",
+  "description": "Agent teams, swarm coordination, Monitor streams, and worktree isolation — wraps 5 swarm_* + 8 agent_* MCP tools (13 total) plus 6 topologies (hierarchical / mesh / hierarchical-mesh / ring / star / adaptive)",
   "version": "0.2.30",
   "author": {
     "name": "ruvnet",

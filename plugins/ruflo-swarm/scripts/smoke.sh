@@ -33,9 +33,9 @@ done
 [[ -f "$ROOT/commands/watch.md" ]] || miss="$miss missing-watch-cmd"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
-step "3. all 4 swarm_* MCP tools referenced"
+step "3. all 5 swarm_* MCP tools referenced"
 miss=""
-for t in swarm_init swarm_status swarm_shutdown swarm_health; do
+for t in swarm_init swarm_status swarm_shutdown swarm_health swarm_scale; do
   grep -rq "$t" "$ROOT" --include='*.md' || miss="$miss $t"
 done
 [[ -z "$miss" ]] && ok || bad "undocumented:$miss"

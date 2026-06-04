@@ -52,19 +52,25 @@ All defined at `v3/@sparkleideas/cli/src/mcp-tools/workflow-tools.ts`:
 ```
 created ──run──→ running ──pause──→ paused ──resume──→ running
                     │                  │
-                    │                  └──cancel──→ cancelled
+                    │                  └──cancel──→ failed
                     │
                     ├──complete──→ completed
-                    └──cancel────→ cancelled
+                    └──cancel────→ failed
 ```
+
+`workflow_cancel` is modeled as a terminal **`failed`** transition (the
+`Workflow.status` union is `draft|ready|running|paused|completed|failed` — there
+is no distinct `cancelled` state). The cancel envelope carries `reason` and
+`skippedSteps` (`steps.length - currentStep`) so a cancelled run is
+distinguishable from an organic failure.
 
 | State | Allowed transitions |
 |-------|--------------------|
-| `created` | `running` (via `workflow_run`), `cancelled` (via `workflow_cancel`) |
-| `running` | `paused` (via `workflow_pause`), `completed` (auto), `cancelled` (via `workflow_cancel`) |
-| `paused` | `running` (via `workflow_resume`), `cancelled` (via `workflow_cancel`) |
+| `created` | `running` (via `workflow_run`), `failed` (via `workflow_cancel`) |
+| `running` | `paused` (via `workflow_pause`), `completed` (auto), `failed` (via `workflow_cancel`) |
+| `paused` | `running` (via `workflow_resume`), `failed` (via `workflow_cancel`) |
 | `completed` | terminal |
-| `cancelled` | terminal |
+| `failed` | terminal |
 
 `workflow_execute` is the **stateless** path — fire-and-forget, no persisted state machine.
 
