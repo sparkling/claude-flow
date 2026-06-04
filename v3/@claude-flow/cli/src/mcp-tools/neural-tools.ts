@@ -17,11 +17,39 @@ import { validateIdentifier, validateText } from './validate-input.js';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Try to import real embeddings — prefer agentic-flow v3 ReasoningBank, then @claude-flow/embeddings
+// Try to import real embeddings — prefer the same memory-router embedder the
+// embeddings_* tools use, then agentic-flow v3 ReasoningBank, then
+// @claude-flow/embeddings.
 let realEmbeddings: { embed: (text: string) => Promise<number[]> } | null = null;
 let embeddingServiceName: string = 'none';
 try {
+  // Tier 0 (ADR-0293 D3): the SAME real ONNX/mpnet embedder embeddings_* uses
+  // (generateEmbedding in memory/memory-router.ts → the loaded adapter). The
+  // neural-tools store previously skipped this and only tried agentic-flow /
+  // @claude-flow/embeddings, so in a project with a working mpnet model
+  // (embeddings_status initialized:true) neural_* still fell back to
+  // hash-fallback (_realEmbeddings:false). Routing through memory-router
+  // shares one embedder across both surfaces. It returns
+  // { embedding, dimensions, model }; we materialize embedding to a plain
+  // array. No silent mock — if this import fails we fall through to the next
+  // real tier, and only land on the explicit hash-fallback when ALL real
+  // tiers are genuinely unavailable.
+  const mr = await import('../memory/memory-router.js').catch(() => null);
+  if (mr?.generateEmbedding) {
+    realEmbeddings = {
+      embed: async (text: string) => {
+        const result = await mr.generateEmbedding(text);
+        // memory-router returns { embedding: number[], ... }; accept either a
+        // wrapped result or a bare array for forward-compat.
+        const vec = Array.isArray(result) ? result : (result?.embedding ?? result);
+        return Array.from(vec as ArrayLike<number>);
+      },
+    };
+    embeddingServiceName = 'memory-router (onnx)';
+  }
+
   // Tier 1: agentic-flow v3 ReasoningBank (fastest — WASM-accelerated)
+  if (!realEmbeddings) {
   const rb = await import('agentic-flow/reasoningbank').catch(() => null);
   if (rb?.computeEmbedding) {
     // The real `computeEmbedding` returns Float32Array (post-ADR-0069 unified
@@ -32,6 +60,7 @@ try {
       embed: async (text: string) => Array.from(await rb.computeEmbedding(text)),
     };
     embeddingServiceName = 'agentic-flow/reasoningbank';
+  }
   }
 
   // Tier 2: @claude-flow/embeddings with agentic-flow provider
@@ -72,11 +101,11 @@ try {
     }
   }
 
-  // No Tier 4 mock fallback. If Tier 1 (agentic-flow) and Tier 3 (onnx)
-  // both failed to import, leave realEmbeddings null and let downstream
-  // code use the explicit hash-fallback path with a clear _embeddingNote
-  // in stats. Silently substituting mock embeddings would hide a missing
-  // production dependency from callers.
+  // No mock fallback. If every real tier (Tier 0 memory-router, Tier 1
+  // agentic-flow, Tier 2/3 @claude-flow/embeddings) failed to import, leave
+  // realEmbeddings null and let downstream code use the explicit hash-fallback
+  // path with a clear _embeddingNote in stats. Silently substituting mock
+  // embeddings would hide a missing production dependency from callers.
 } catch {
   // No embedding provider available, will use fallback
 }
@@ -368,12 +397,19 @@ export const neuralTools: MCPTool[] = [
       const embedding = await generateEmbedding(inputText, 384);
       const latency = Math.round(performance.now() - startTime);
 
-      // ADR-093 F11: real classifier head over stored patterns. Previously
-      // confidence was the raw cosine similarity (often clamped to 0 when
-      // stored embeddings were stale or zero-vectored). Now we run k-NN
-      // with cosine distance and apply a temperature-controlled softmax
-      // over the top-K so confidence is a proper distribution that sums
-      // to 1, and we surface enough metadata to trust the result.
+      // ADR-093 F11 / ADR-0293 D3: real classifier head over stored patterns.
+      // We run k-NN with cosine, take a temperature-softmax over the top-K to
+      // get each candidate's RELATIVE share, then GATE that share by the
+      // candidate's absolute match strength.
+      //
+      // Why the gate: a plain softmax sums to 1, so a SINGLE candidate (or a
+      // dominant one) gets confidence 1.0 regardless of whether it actually
+      // matches — that's how a disjoint-text query against one stored pattern
+      // returned `{cosineSimilarity:0, confidence:1}` (ADR-0293 D3 scoring
+      // bug). Confidence must reflect both dominance AND match strength, so we
+      // scale the softmax weight by max(0, cosine): an orthogonal/non-match
+      // (cosine≈0) yields confidence≈0; an exact match (cosine≈1) keeps its
+      // full softmax share (1.0 when it is the sole/dominant candidate).
       const storedPatterns = Object.values(store.patterns);
       let predictions: Array<{ label: string; confidence: number; patternId: string; cosineSimilarity: number }>;
 
@@ -391,17 +427,25 @@ export const neuralTools: MCPTool[] = [
           .sort((a, b) => b.cosineSimilarity - a.cosineSimilarity)
           .slice(0, topK);
 
-        // Step 2: temperature-softmax over the top-K so confidence sums to 1.
-        // Temperature 0.1 sharpens differences between similar candidates.
+        // Step 2: temperature-softmax over the top-K (relative share among
+        // candidates). Temperature 0.1 sharpens differences between similar
+        // candidates.
         const tau = 0.1;
         const exps = scored.map(s => Math.exp(s.cosineSimilarity / tau));
         const z = exps.reduce((a, b) => a + b, 0) || 1;
-        predictions = scored.map((s, i) => ({
-          label: s.label,
-          patternId: s.patternId,
-          cosineSimilarity: Number(s.cosineSimilarity.toFixed(4)),
-          confidence: Number((exps[i] / z).toFixed(4)),
-        }));
+        predictions = scored.map((s, i) => {
+          // Map cosine [-1,1] → match-strength [0,1] (clamp negatives to 0;
+          // L2-normalized embeddings give ~1 for an exact match, ~0 for an
+          // unrelated one).
+          const matchStrength = Math.max(0, s.cosineSimilarity);
+          const softmaxShare = exps[i] / z;
+          return {
+            label: s.label,
+            patternId: s.patternId,
+            cosineSimilarity: Number(s.cosineSimilarity.toFixed(4)),
+            confidence: Number((softmaxShare * matchStrength).toFixed(4)),
+          };
+        });
       } else {
         // No patterns stored — no predictions possible. Be honest about it
         // instead of returning empty silently.
