@@ -1,7 +1,7 @@
 {
   "name": "ruflo-federation",
   "description": "Federation workflow scaffolds composing memory_* primitives — init/status/audit thought-templates routed via mcp__ruflo__memory_store/memory_search + hooks_post-task; cross-installation behaviour is documentation-driven, not runtime-enforced",
-  "version": "0.2.23",
+  "version": "0.2.24",
   "author": {
     "name": "ruvnet",
     "url": "https://github.com/ruvnet"
