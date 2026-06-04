@@ -33,17 +33,26 @@ import { type FederationMessageType } from './domain/entities/federation-envelop
 // Today this resolves to WebSocketFallbackTransport (real ws networking);
 // when ruvnet/agentic-flow ships a native QUIC binding the same import
 // auto-upgrades with no plugin changes (set AGENTIC_FLOW_QUIC_NATIVE=1).
-type LoadedTransport = Awaited<ReturnType<typeof loadQuicTransport>> & {
+// ADR-0297 R1: the agentic-flow VALUE bindings are now loaded via a
+// fork-native dynamic-import wrapper (./transport/agentic-flow-loader) so
+// a missing `agentic-flow` (an optional peer-dep) no longer crashes the
+// whole package at module-load — the federation CLI degrades gracefully
+// to in-process routing instead. The type surface is imported type-only
+// (erased at compile, runtime-safe even when agentic-flow is absent).
+import {
+  loadFederationTransport,
+  getFederationTransportCapabilities,
+} from './transport/agentic-flow-loader.js';
+import type {
+  AgentMessage,
+  TransportCapabilities,
+  AgentTransport,
+} from './transport/agentic-flow-loader.js';
+type LoadedTransport = AgentTransport & {
   /** WebSocketFallbackTransport adds listen(); the loader's interface
    * doesn't include it, so we cast at the call site. */
   listen?: (port: number, host?: string) => Promise<void>;
 };
-import {
-  loadQuicTransport,
-  getTransportCapabilities,
-  type AgentMessage,
-  type TransportCapabilities,
-} from 'agentic-flow/transport/loader';
 import { createMcpTools } from './mcp-tools.js';
 import { createCliCommands } from './cli-commands.js';
 
@@ -230,14 +239,15 @@ export class AgentFederationPlugin implements ClaudeFlowPlugin {
     // compat for tests/environments without ws available.
     let transport: LoadedTransport | null = null;
     try {
-      transport = await loadQuicTransport({
+      const loaded = await loadFederationTransport({
         serverName: nodeId,
         maxIdleTimeoutMs: 30_000,
         maxConcurrentStreams: 100,
         enable0Rtt: true,
-      }) as LoadedTransport;
+      });
+      transport = loaded.transport as LoadedTransport;
       this.transport = transport;
-      context.logger.info(`Federation transport loaded: ${nodeId}`);
+      context.logger.info(`Federation transport loaded: ${nodeId} (source=${loaded.source})`);
     } catch (err) {
       context.logger.warn(
         `Federation transport unavailable (${err instanceof Error ? err.message : err}); ` +
@@ -254,7 +264,7 @@ export class AgentFederationPlugin implements ClaudeFlowPlugin {
     // (`selectedBackend`, `quicAvailable`, `webSocketFallbackAvailable`,
     // `tlsVersion?`).
     try {
-      this.transportInfo = await getTransportCapabilities();
+      this.transportInfo = await getFederationTransportCapabilities();
     } catch (err) {
       // Should be unreachable since the loader's probe is pure env-var
       // read, but stay defensive — leaving `transportInfo` null lets

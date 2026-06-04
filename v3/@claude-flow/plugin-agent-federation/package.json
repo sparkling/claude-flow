@@ -23,6 +23,14 @@
   "dependencies": {
     "@noble/ed25519": "^2.0.0"
   },
+  "peerDependencies": {
+    "agentic-flow": "2.0.2-alpha-patch.963"
+  },
+  "peerDependenciesMeta": {
+    "agentic-flow": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@claude-flow/shared": "workspace:*",
     "@claude-flow/security": "workspace:*",
