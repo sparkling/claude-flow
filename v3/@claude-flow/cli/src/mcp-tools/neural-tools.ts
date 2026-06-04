@@ -607,13 +607,20 @@ export const neuralTools: MCPTool[] = [
   },
   {
     name: 'neural_compress',
-    description: 'Compress neural model or embeddings',
+    // ADR-0293 D4 / ADR-0086: int8 quantization was deliberately removed in
+    // ADR-0086 Phase 1 (T1.1 deleted quantizeInt8/getQuantizationStats — no
+    // second consumer). Document the capability boundary up front so the
+    // tool's response matches its advertised capability (no half-advertised
+    // no-op): the 'quantize' method is NOT supported in this build; 'prune'
+    // and 'distill' are.
+    description:
+      'Compress stored neural patterns. Supported methods: prune (drop low-usage patterns), distill (merge near-duplicate patterns). NOTE: the quantize method is NOT supported in this build — int8 quantization was removed in ADR-0086 Phase 1; calling it returns a documented "not available" error.',
     category: 'neural',
     inputSchema: {
       type: 'object',
       properties: {
         modelId: { type: 'string', description: 'Model ID to compress' },
-        method: { type: 'string', enum: ['quantize', 'prune', 'distill'], description: 'Compression method' },
+        method: { type: 'string', enum: ['quantize', 'prune', 'distill'], description: 'Compression method. prune and distill are supported; quantize is NOT supported in this build (removed in ADR-0086 Phase 1) and returns a documented "not available" error.' },
         targetSize: { type: 'number', description: 'Target size reduction (0-1)' },
       },
     },
