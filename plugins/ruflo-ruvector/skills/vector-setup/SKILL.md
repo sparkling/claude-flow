@@ -80,3 +80,21 @@ It checks: version pin, top-level subcommand visibility, `hooks ast-analyze`, `h
 - `@sparkleideas/ruvector-sona` native binding (the JS fallback via `@sparkleideas/ruvector-ruvllm` is sufficient on macOS arm64; Linux x64 has its own native binding)
 
 If `doctor` still reports a problem after this skill runs, paste its output verbatim and ask.
+
+## Known third-party issues (no fork action — ADR-0293 D11)
+
+Two `ruvector@0.2.25` rough edges are **upstream third-party** behaviour, identical
+whether you run the public `ruvector` or any rebranded build — they are NOT fork
+divergences and there is no fork-side fix:
+
+- **`ruvector embed` first-run ONNX bundling gap** — the ONNX WASM files are not
+  bundled in the base package; `ruvector embed` fails until
+  `ruvector-onnx-embeddings-wasm` is installed (step 2 above). Ruflo's own
+  embeddings path (`embeddings_*` / `mcp__ruflo__embeddings_generate`) uses
+  transformers.js mpnet and is unaffected.
+- **`ruvector stats` redb/JSON bug** — `stats` can error against the native redb
+  store. This is a `ruvector@0.2.25` native-db issue; use `ruvector info` /
+  `doctor` for install health instead.
+
+Both are tracked upstream (`ruvnet/ruvector`); do not file fork housekeeping or
+attempt a fork patch for them.

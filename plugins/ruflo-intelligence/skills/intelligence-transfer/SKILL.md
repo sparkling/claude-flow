@@ -1,80 +1,83 @@
 ---
 name: intelligence-transfer
-description: Publish or fetch learned patterns across projects via IPFS (Pinata) -- the cross-project pattern transfer that hooks_transfer enables
-argument-hint: "<store|load|from-project> [--cid <ipfs-cid>] [--source <project-path>]"
+description: Transfer learned patterns from another project on disk into this one -- the project-to-project pattern transfer that hooks_transfer performs
+argument-hint: "--source <project-path> [--filter <type>] [--min-confidence <0-1>]"
 allowed-tools: mcp__ruflo__hooks_transfer mcp__ruflo__hooks_intelligence_pattern-search mcp__ruflo__hooks_intelligence_pattern-store mcp__ruflo__neural_patterns mcp__ruflo__neural_status Bash
 ---
 
 # Intelligence Transfer
 
-Cross-project pattern sharing via IPFS. Lets a different project — or a different machine — fetch and apply patterns this project has already learned.
+Project-to-project pattern sharing. Reads the learned patterns from another
+project's memory store on disk and reports what would transfer into this one.
 
-## Why this exists
+## What hooks_transfer actually does
 
-Most learning is project-local. `hooks_transfer` is the escape hatch: publish patterns to IPFS, share the CID, and any peer can ingest them. Equivalent to "a deploy artifact for what your agents have learned."
+`hooks_transfer` is a local, on-disk operation — it reads a source project's
+memory store (`<sourcePath>/.claude-flow/memory/store.json`) and counts the
+patterns it can transfer, grouped by type (file-patterns, task-routing,
+command-risk, agent-success). There is no IPFS, no Pinata, no CID, and no
+network call — this skill previously documented a surface the tool never had
+(ADR-0293 D10).
 
-## Prerequisite
+### Parameters
 
-```bash
-# Required env var (or equivalent endpoint config)
-echo $PINATA_API_JWT
-```
+- `sourcePath` (required) — filesystem path to the source project.
+- `filter` (optional) — only transfer pattern types whose key contains this
+  string (e.g. `routing`).
+- `minConfidence` (optional, default 0.7) — minimum confidence threshold.
 
-If unset, `hooks_transfer` returns a structured `success: false` with `error: "PINATA_API_JWT not configured"`. Configure before running this skill.
-
-## Workflows
-
-### Publish current project's patterns
+## Workflow
 
 ```bash
 # Inspect what's stored locally first
-mcp tool call neural_patterns --json -- '{"list": true}'
+mcp tool call neural_patterns --json -- '{"action": "list"}'
 
-# Publish to IPFS — returns a CID
-mcp tool call hooks_transfer --json -- '{"action": "store"}'
+# Transfer patterns from a sibling project on disk
+mcp tool call hooks_transfer --json -- '{"sourcePath": "/path/to/peer-project"}'
+
+# Filter to a single pattern family, with a confidence floor
+mcp tool call hooks_transfer --json -- '{"sourcePath": "/path/to/peer-project", "filter": "routing", "minConfidence": 0.8}'
 ```
 
-The response includes the IPFS CID. Save it; share it with peers who need the patterns.
+On success the response is:
 
-### Fetch + apply a peer's patterns
-
-```bash
-# Pull a CID and apply locally
-mcp tool call hooks_transfer --json -- '{"action": "load", "cid": "QmXyz..."}'
-
-# Verify they landed
-mcp tool call hooks_intelligence_pattern-search --json -- '{"query": "<test>", "limit": 5}'
+```json
+{ "success": true, "sourcePath": "...", "transferred": { "total": 2, "byType": { "task-routing": 1, "agent-success": 1, "...": 0 } }, "dataSource": "source-project" }
 ```
 
-Patterns are merged with local state, not replaced. Conflicts are resolved by recency (newer wins).
+If the source has no patterns (empty or nonexistent), the response is honest —
+it does NOT fabricate demo data (ADR-0293 D2):
 
-### Mirror an entire project's patterns
-
-```bash
-# Read patterns from a sibling project on disk and republish under a new CID
-mcp tool call hooks_transfer --json -- '{"action": "from-project", "source": "/path/to/peer-project"}'
+```json
+{ "success": false, "message": "No patterns found in source project", "sourcePath": "...", "transferred": 0 }
 ```
-
-Useful for consolidating learnings across a monorepo or a fleet of related projects.
 
 ## When to use this skill
 
-- **Before a fresh project starts** — fetch the relevant patterns from a parent project so the new project's agents start with prior knowledge instead of cold.
-- **After a major learning milestone** — publish so other projects benefit.
-- **When debugging a regression** — fetch a known-good pattern set to compare against.
+- **Before a fresh project starts** — pull the relevant patterns from a parent
+  project on the same machine so the new project's agents start with prior
+  knowledge instead of cold.
+- **Consolidating a monorepo or fleet** — fold a sibling project's learned
+  patterns into a shared project.
 
 ## When NOT to use
 
-- Daily — it's a heavyweight operation. `agentdb_consolidate` does the local equivalent.
-- For sensitive patterns — IPFS is public by default. Pinata pinning does NOT make patterns private. Strip PII (use `aidefence_has_pii` first) before publishing.
+- Across machines / over a network — `hooks_transfer` is local-disk only. There
+  is no remote/IPFS transport in this build. Copy the source project's
+  `.claude-flow/memory/store.json` to the target machine first, then run this
+  against the local copy.
+- For sensitive patterns — strip PII (use `aidefence_has_pii` first) before
+  sharing a store between projects.
 
 ## Caveats
 
-- IPFS CIDs are content-addressed; republishing the same pattern set gives you the same CID.
-- Patterns are stored as JSON; they include only the embedding hashes + metadata, not raw text. Decoding requires the same SONA / MicroLoRA adapter version that produced them.
-- This skill does NOT publish AgentDB rows — only the intelligence-side patterns. To ship full memory, use `agentdb_*` export tools (out of scope here).
+- This reads only the intelligence-side memory store; it does NOT export
+  AgentDB rows. To ship full memory, use the `agentdb_*` / `memory_export`
+  tools (out of scope here).
+- The counts reflect the source project's actual entries — an empty source
+  yields `success: false`, never a fabricated count.
 
 ## Related
 
-- `ruflo-agentdb` ADR-0001 §"Namespace convention" — defines `pattern` namespace that this transfer reads from
-- `neural-train` skill — produces the patterns that this skill ships
+- `ruflo-agentdb` ADR-0001 §"Namespace convention" — the `pattern` namespace
+- `neural-train` skill — produces the patterns this skill transfers

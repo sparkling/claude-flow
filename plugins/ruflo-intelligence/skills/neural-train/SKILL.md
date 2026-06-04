@@ -1,7 +1,7 @@
 ---
 name: neural-train
 description: Train SONA + MicroLoRA neural patterns from successful task completions; runs the DISTILL + CONSOLIDATE phases of the 4-step pipeline
-argument-hint: "[--pattern-type coordination|edit|task] [--epochs N] [--microlora]"
+argument-hint: "[--model-type moe|transformer|classifier|embedding] [--epochs N] [--microlora]"
 allowed-tools: mcp__ruflo__neural_train mcp__ruflo__neural_status mcp__ruflo__neural_patterns mcp__ruflo__neural_predict mcp__ruflo__neural_optimize mcp__ruflo__neural_compress mcp__ruflo__hooks_pretrain mcp__ruflo__hooks_build-agents mcp__ruflo__hooks_intelligence_trajectory-start mcp__ruflo__hooks_intelligence_trajectory-step mcp__ruflo__hooks_intelligence_trajectory-end mcp__ruflo__hooks_intelligence_pattern-store mcp__ruflo__hooks_intelligence_learn mcp__ruflo__hooks_intelligence-reset mcp__ruflo__ruvllm_sona_create mcp__ruflo__ruvllm_sona_adapt mcp__ruflo__ruvllm_microlora_create mcp__ruflo__ruvllm_microlora_adapt mcp__ruflo__agentdb_consolidate Bash
 ---
 
@@ -22,7 +22,7 @@ Train and consolidate neural patterns. Implements the **DISTILL** and **CONSOLID
 3. **Record steps** — for each significant action, `mcp__ruflo__hooks_intelligence_trajectory-step`.
 4. **End trajectory** — `mcp__ruflo__hooks_intelligence_trajectory-end` with `verdict: pass|fail|partial`.
 5. **Learn from the trajectory** — `mcp__ruflo__hooks_intelligence_learn`.
-6. **Train patterns** — `mcp__ruflo__neural_train` with `--pattern-type coordination --epochs 10`.
+6. **Train patterns** — `mcp__ruflo__neural_train` with `modelType: moe` (or `transformer|classifier|embedding`) and `epochs: 10`.
 7. **Store patterns** — `mcp__ruflo__hooks_intelligence_pattern-store`.
 8. **Verify** — `mcp__ruflo__neural_patterns` to confirm.
 
@@ -58,7 +58,7 @@ After every ~10 trajectory completions, run a full consolidation pass:
 
 ```bash
 mcp tool call agentdb_consolidate --json
-mcp tool call neural_compress --json    # storage efficiency
+mcp tool call neural_compress --json -- '{"method": "distill"}'   # merge near-duplicate patterns (or method:prune). quantize is not supported in this build (ADR-0086 Phase 1)
 ```
 
 This folds patterns into long-term storage under EWC++ semantics.
@@ -85,10 +85,10 @@ mcp tool call hooks_intelligence-reset --json
 ## CLI alternatives
 
 ```bash
-npx @sparkleideas/cli@latest neural train --pattern-type coordination --epochs 10
+npx @sparkleideas/cli@latest neural train --model-type moe --epochs 10
 npx @sparkleideas/cli@latest neural patterns --list
 npx @sparkleideas/cli@latest neural status
-npx @sparkleideas/cli@latest neural compress
+npx @sparkleideas/cli@latest neural compress --method distill   # or --method prune; quantize unsupported (ADR-0086 Phase 1)
 npx @sparkleideas/cli@latest hooks pretrain --model-type moe --epochs 10
 npx @sparkleideas/cli@latest hooks build-agents --agent-types coder,tester
 ```
