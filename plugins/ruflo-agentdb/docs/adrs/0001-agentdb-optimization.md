@@ -55,12 +55,18 @@ Beyond the count drift, the plugin omits three substantive capabilities of the s
 > *unregistered* in both upstream and the fork at the time and removed
 > the phantom advertisement. Upstream subsequently shipped the working
 > `embeddings_rabitq_*` tools, and **ADR-0294 R3 (2026-06-04) wired the
-> fork's retained `rabitq-index.ts` wrapper to its WASM backend
-> (`@ruvector/rabitq-wasm`) and registered the 3 MCP tools**
-> (`embeddings_rabitq_status` / `_build` / `_search`). The capability is
-> now real and reachable: `embeddings_rabitq_build` over a ≥5-vector
-> store returns a 32× compression envelope; `embeddings_rabitq_search`
-> returns ranked results. The ADR-0248 phantom verdict no longer holds.
+> fork's retained `rabitq-index.ts` wrapper to its WASM backend and
+> registered the 3 MCP tools** (`embeddings_rabitq_status` / `_build` /
+> `_search`). Reachability depends on the WASM mirror shipping: the cli
+> imports `@ruvector/rabitq-wasm`, which the codemod renames to the
+> `@sparkleideas/ruvector-rabitq-wasm` `optionalDependency`. ADR-0294 B1
+> published that mirror (it was 404 → a clean install silently skipped
+> it) and wired the pipeline to keep publishing it. **Once that mirror is
+> in the release** (post-B1), the capability is real and reachable:
+> `embeddings_rabitq_build` over a ≥5-vector store returns a 32×
+> compression envelope and `embeddings_rabitq_search` returns ranked
+> results (verified via a fresh `npm install` through the production
+> optionalDep path). The ADR-0248 phantom verdict no longer holds.
 
 ### Why now
 

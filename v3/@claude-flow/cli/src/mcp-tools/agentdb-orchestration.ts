@@ -499,7 +499,13 @@ export async function batchOperation(params: {
           task: String(e.value ?? e.content ?? e.task ?? JSON.stringify(e)),
           reward: 0.5,
           success: true,
-          metadata: { ...(e.metadata || {}), key: e.key },
+          // ADR-0294 N7: tag the provenance so these bulk-imported rows are
+          // distinguishable from real learning episodes. Today NightlyLearner
+          // already excludes them structurally (action=NULL + reward<minReward
+          // 0.7), but that exclusion is incidental; this explicit marker
+          // future-proofs it (a learner-side filter on this marker is OUT of
+          // scope here — do not add one).
+          metadata: { ...(e.metadata || {}), key: e.key, source: 'batch-insert' },
         }));
         result = await batch.insertEpisodes(episodes);
         break;

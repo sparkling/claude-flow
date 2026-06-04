@@ -548,12 +548,17 @@ export const agentdbCausalEdge: MCPTool = {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any,
       );
-      // ADR-0276 (preserved exactly): ADR-structural edges additionally land in
-      // CausalMemoryGraph/`causal_edges` — the working read path for
-      // `agentdb_causal-query`/`-recall` (J2, must-not-regress). Dual-write: the
-      // entity edge above feeds the graph-traversal surface; this feeds the
-      // causal surface. normalizeAdrId() above keeps `adr/ADR-x`→`ADR-x` so an
-      // ADR edge stored here is reachable by a canonical causal-query.
+      // ADR-0276 (preserved exactly): EVERY edge is ALSO written to
+      // CausalMemoryGraph/`causal_edges` — UNCONDITIONALLY, not only the
+      // ADR-structural case. This is deliberate (ADR-0294 §Consequences, ratified
+      // over the ADR's earlier scope-to-ADR aside): `causal_edges` is the working
+      // read path for `agentdb_causal-query`/`-recall` (J2, must-not-regress), and
+      // those read causal_edges ONLY — so scoping this write to ADR edges (option
+      // b) would make general ENTITY edges vanish from causal-query. The
+      // graph_edges write above feeds the graph-traversal surface; this one feeds
+      // the causal surface; both run for both edge kinds. normalizeAdrId() above
+      // keeps `adr/ADR-x`→`ADR-x` so an ADR edge stored here is reachable by a
+      // canonical causal-query (the ADR case is the most load-bearing consumer).
       await archivist.dispatch('agentdb_causal_edge', {
         sourceId,
         targetId,

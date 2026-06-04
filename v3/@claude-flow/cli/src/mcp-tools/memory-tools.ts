@@ -1,8 +1,10 @@
 /**
- * Memory MCP Tools for CLI - V3 with SQLite/HNSW Backend.
+ * Memory MCP Tools for CLI - V3 with RVF + HNSW Backend.
  *
- * Backed by an SQLite + HNSW pipeline (150x-12,500x faster semantic search;
- * ONNX cosine similarity; auto-migration from legacy JSON storage).
+ * Backed by an RVF + HNSW pipeline (ADR-0257 canonical label; 150x-12,500x
+ * faster semantic search; ONNX cosine similarity; auto-migration from legacy
+ * JSON storage). The relational sidecars (causal/hierarchical/patterns) live in
+ * better-sqlite3; the vector/memory axis is RVF + HNSW (ADR-0294 X2/N4).
  *
  * ── ADR-0181 Phase 5 (F4-3) state, 2026-05-15 ────────────────────────────────
  *
