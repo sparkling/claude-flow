@@ -963,9 +963,29 @@ export const agentdbSemanticRoute: MCPTool = {
       await ensureRvfWired();
       const ranked = await (await getProcessArchivist()).dispatchRead('agentdb_semantic_route', {
         input,
-      }) as ReadonlyArray<{ item: { route: string; confidence: number; metadata?: Record<string, unknown> } }>;
-      const top = ranked[0]?.item;
-      if (!top) return { success: false, route: null, error: 'No route matched' };
+      }) as ReadonlyArray<{ item: { route: string; confidence: number; metadata?: Record<string, unknown> } }> | null | undefined;
+      const top = Array.isArray(ranked) ? ranked[0]?.item : undefined;
+      // ADR-0294 O2: honest no-routes-configured envelope. semanticRouter is ON
+      // but self-inert until routes exist (none configured on a fresh project) —
+      // and a cold first read can yield a null/undefined dispatch result before
+      // the router warms. EITHER state previously surfaced as bare `null` (cold)
+      // or an unhelpful `"No route matched"` (warm), both less honest than
+      // upstream's explicit capability-absent redirect. Mirror upstream's shape:
+      // never bare null; explain the state and recommend agentdb_route.
+      // (docs/research/c2-memory-data/02-fork-diff.md → O2; 04-dispositions.md O2.)
+      if (!top) {
+        return {
+          success: false,
+          route: null,
+          error: 'No semantic routes configured',
+          message:
+            'No routes are configured for the SemanticRouter, so no route could match. ' +
+            'Add routes via agentdb_semantic_add_route, or use agentdb_route for ' +
+            'heuristic/learning-based routing that works without preconfigured routes.',
+          recommendation: 'Use agentdb_route',
+          controller: 'archivist',
+        };
+      }
       return { success: true, route: top.route, confidence: top.confidence, metadata: top.metadata, controller: 'archivist' };
     } catch (error) {
       return { success: false, route: null, error: sanitizeError(error) };
