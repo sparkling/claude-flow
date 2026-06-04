@@ -523,7 +523,38 @@ export const agentdbCausalEdge: MCPTool = {
       // doesn't use the SQLite scope; the gate is the carve-out invariant
       // boundary, not a byte-target predicate.
       await ensureSqliteWired();
-      await (await getProcessArchivist()).dispatch('agentdb_causal_edge', {
+      const archivist = await getProcessArchivist();
+      // ADR-0294 R1: restore the general-entity `graph_edges` write upstream's
+      // `agentdb_causal-edge` performs (via @claude-flow/ruvector-graph-node).
+      // ADR-0276 re-converged ADR-structural edges onto CausalMemoryGraph
+      // (`causal_edges`) but narrowed this MCP tool past upstream's contract:
+      // general entity edges (e.g. AuthController→UserService) stopped reaching
+      // `graph_edges`, starving `agentdb_graph-query` (k-hop/semantic/pagerank),
+      // `agentdb_graph-pathfinder`, and the kg traverse/relations/visualize
+      // composition (all read `graph_edges` via dispatchRead
+      // 'agentdb_graph_edge_query'). This dispatch is the SAME proven write path
+      // `hooks_post-task` already uses for its `reinforced-by` edge — upsert keyed
+      // (source_id, target_id, relation), embedding optional. Re-throws on fatal
+      // (no silent swallow; feedback-best-effort-must-rethrow-fatals).
+      await archivist.dispatch(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        'agentdb_graph_edge' as any,
+        {
+          action: 'save',
+          sourceId,
+          targetId,
+          relation,
+          ...(weight !== undefined ? { weight, confidence: weight } : {}),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+      );
+      // ADR-0276 (preserved exactly): ADR-structural edges additionally land in
+      // CausalMemoryGraph/`causal_edges` — the working read path for
+      // `agentdb_causal-query`/`-recall` (J2, must-not-regress). Dual-write: the
+      // entity edge above feeds the graph-traversal surface; this feeds the
+      // causal surface. normalizeAdrId() above keeps `adr/ADR-x`→`ADR-x` so an
+      // ADR edge stored here is reachable by a canonical causal-query.
+      await archivist.dispatch('agentdb_causal_edge', {
         sourceId,
         targetId,
         relation,
