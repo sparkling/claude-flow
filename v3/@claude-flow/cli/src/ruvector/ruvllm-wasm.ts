@@ -98,17 +98,52 @@ export async function isRuvllmWasmAvailable(): Promise<boolean> {
 
 /**
  * Initialize the WASM module for Node.js. Safe to call multiple times.
- * Uses initSync with object form: { module: bytes } (raw bytes deprecated).
+ *
+ * ADR-0293 D1 — module-shape adaptation. The vendored ruvllm-wasm build
+ * (2.0.2-patch.93, the forks/ruvector wasm-bindgen output) AUTO-INSTANTIATES
+ * the WASM at module load (`new WebAssembly.Instance(...)` synchronously at the
+ * bottom of the glue) and exposes a no-arg `init()` for panic-hook setup. It
+ * exports NO `initSync` — the previous `mod.initSync({ module })` call threw
+ * `mod.initSync is not a function`, killing every ruvllm_* tool. Older
+ * wasm-bindgen builds (upstream's `@ruvector/ruvllm-wasm`) instead require
+ * `initSync({ module: bytes })` and do NOT auto-instantiate.
+ *
+ * We adapt to whichever shape the loaded module presents (not a silent
+ * fallback — each branch is the correct initializer for that build), then
+ * VERIFY the module is genuinely functional before flagging it ready, so a
+ * broken/half-loaded module fails loud (feedback-no-fallbacks).
  */
 export async function initRuvllmWasm(): Promise<void> {
   if (_wasmReady) return;
   try {
-    const mod = await import('@ruvector/ruvllm-wasm');
-    const require_ = createRequire(import.meta.url);
-    const wasmPath = require_.resolve('@ruvector/ruvllm-wasm/ruvllm_wasm_bg.wasm');
-    const wasmBytes = readFileSync(wasmPath);
-    // MUST use object form — initSync(bytes) is deprecated
-    mod.initSync({ module: wasmBytes });
+    const mod: any = await import('@ruvector/ruvllm-wasm');
+
+    if (typeof mod.initSync === 'function') {
+      // Legacy wasm-bindgen build: instantiate from bytes. MUST use object
+      // form — initSync(bytes) is deprecated.
+      const require_ = createRequire(import.meta.url);
+      const wasmPath = require_.resolve('@ruvector/ruvllm-wasm/ruvllm_wasm_bg.wasm');
+      const wasmBytes = readFileSync(wasmPath);
+      mod.initSync({ module: wasmBytes });
+    } else if (typeof mod.init === 'function') {
+      // Current build (2.0.2-patch.93): WASM already auto-instantiated at
+      // module load; init() just installs panic hooks. No bytes needed.
+      mod.init();
+    } else {
+      throw new Error(
+        'module exposes neither init() nor initSync() — unexpected ruvllm-wasm build shape',
+      );
+    }
+
+    // Fail loud if the module loaded but is not actually functional. The
+    // current build auto-instantiates, so a missing/corrupt WASM surfaces as
+    // a healthCheck/isReady failure rather than an init throw.
+    if (typeof mod.healthCheck === 'function' && mod.healthCheck() !== true) {
+      throw new Error('healthCheck() returned false after init');
+    } else if (typeof mod.isReady === 'function' && mod.isReady() !== true) {
+      throw new Error('isReady() returned false after init');
+    }
+
     _wasmReady = true;
   } catch (err) {
     throw new Error(`Failed to initialize @ruvector/ruvllm-wasm: ${err}`);
