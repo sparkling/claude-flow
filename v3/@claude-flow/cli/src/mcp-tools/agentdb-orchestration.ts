@@ -458,11 +458,21 @@ export async function batchOperation(params: {
     if (typeof resourceTracker.recordQuery === 'function') resourceTracker.recordQuery();
   }
 
-  // Rate limit check
+  // Rate limit check.
+  // ADR-0294 O1: the rateLimiter controller (agentdb security/limits.ts
+  // RateLimiter) is a TOKEN BUCKET whose tryConsume(tokens: number = 1) compares
+  // `this.tokens >= tokens`. The prior call passed the category STRING 'batch'
+  // as the token COUNT, so the comparison was `100 >= NaN` → false on the VERY
+  // FIRST cold call (bucket starts full at maxRequests=100), wrongly returning
+  // rate_limited (DA-reproduced ×3 fresh processes;
+  // docs/research/c2-memory-data/02-fork-diff.md → agentdb_batch / O1). The
+  // batch op should consume ONE token. getRetryAfter does not exist on this
+  // class (it has getTokens/reset), so the guarded fallback already yields a
+  // sane retryAfter; we keep it explicit at the window default.
   const rateLimiter = await getController<any>('rateLimiter');
   if (rateLimiter && typeof rateLimiter.tryConsume === 'function') {
-    if (!rateLimiter.tryConsume('batch')) {
-      const retryAfter = typeof rateLimiter.getRetryAfter === 'function' ? rateLimiter.getRetryAfter('batch') : 1000;
+    if (!rateLimiter.tryConsume(1)) {
+      const retryAfter = typeof rateLimiter.getRetryAfter === 'function' ? rateLimiter.getRetryAfter(1) : 1000;
       return { success: false, error: 'rate_limited', retryAfter };
     }
   }
