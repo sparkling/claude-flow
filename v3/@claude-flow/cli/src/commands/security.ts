@@ -901,12 +901,19 @@ const defendCommand: Command = {
         output.writeln();
 
         for (const threat of result.threats) {
-          const severityColor = {
-            critical: output.error,
-            high: output.warning,
-            medium: output.info,
-            low: output.dim,
-          }[threat.severity] || output.dim;
+          // ADR-0297 W1: wrap in arrows so the OutputFormatter `this`
+          // binding survives. Extracting `output.error` etc. as bare
+          // method references loses `this` (the `output` singleton); the
+          // methods do `return this.color(...)`, so calling them bare
+          // throws "Cannot read properties of undefined (reading 'color')"
+          // — crashing the default-text defend render on every detected
+          // threat. (Upstream-broken-shared; fork-side fix only.)
+          const severityColor = ({
+            critical: (s: string) => output.error(s),
+            high: (s: string) => output.warning(s),
+            medium: (s: string) => output.info(s),
+            low: (s: string) => output.dim(s),
+          } as Record<string, (s: string) => string>)[threat.severity] || ((s: string) => output.dim(s));
 
           output.writeln(`  ${severityColor(`[${threat.severity.toUpperCase()}]`)} ${threat.type}`);
           output.writeln(`    ${output.dim(threat.description)}`);
