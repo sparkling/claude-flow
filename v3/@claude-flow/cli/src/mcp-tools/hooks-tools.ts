@@ -2229,12 +2229,19 @@ export const hooksTransfer: MCPTool = {
       'agent-success': sourceEntries.filter(e => e.key.includes('agent') || e.metadata?.type === 'agent-success').length,
     };
 
-    // If source has no patterns, provide demo data
+    // ADR-0293 D2: if source has no patterns, report honestly. The fork had
+    // rewired this branch to fabricate 40 patterns (8/12/5/15) tagged as a
+    // synthetic dataSource — a fake-success / counter-as-content anti-pattern
+    // that directly violates feedback-no-fallbacks. Restore the upstream
+    // honest empty return; do NOT fabricate. (No forbidden marker string in
+    // this comment — the substring gates grep the compiled dist.)
     if (Object.values(byType).every(v => v === 0)) {
-      byType['file-patterns'] = 8;
-      byType['task-routing'] = 12;
-      byType['command-risk'] = 5;
-      byType['agent-success'] = 15;
+      return {
+        success: false,
+        message: 'No patterns found in source project',
+        sourcePath,
+        transferred: 0,
+      };
     }
 
     if (filter) {
@@ -2246,6 +2253,7 @@ export const hooksTransfer: MCPTool = {
     const total = Object.values(byType).reduce((a, b) => a + b, 0);
 
     return {
+      success: true,
       sourcePath,
       transferred: {
         total,
@@ -2260,7 +2268,7 @@ export const hooksTransfer: MCPTool = {
         avgConfidence: 0.82 + (minConfidence > 0.8 ? 0.1 : 0),
         avgAge: '3 days',
       },
-      dataSource: Object.values(sourceStore.entries).length > 0 ? 'source-project' : 'demo-data',
+      dataSource: 'source-project',
     };
   },
 };
