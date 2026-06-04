@@ -484,9 +484,22 @@ export async function batchOperation(params: {
     let result;
     switch (params.operation) {
       case 'insert': {
+        // ADR-0294 O1: BatchOperations.insertEpisodes writes into the episodes
+        // table whose session_id/task columns are NOT NULL and whose Episode
+        // shape (ReflexionMemory.Episode) is {sessionId, task, reward, success},
+        // NOT {content, metadata}. The prior mapping produced episodes with
+        // sessionId=undefined → "NOT NULL constraint failed: episodes.session_id"
+        // (the defect the cold rate_limiter previously masked). Map to the real
+        // Episode shape: one synthetic session per batch call, the entry
+        // value/content as the task text, a neutral reward, success:true, and
+        // the caller's key preserved in metadata for content-verification.
+        const batchSessionId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const episodes = params.entries.map((e: any) => ({
-          content: e.value || e.content || JSON.stringify(e),
-          metadata: e.metadata || { key: e.key },
+          sessionId: batchSessionId,
+          task: String(e.value ?? e.content ?? e.task ?? JSON.stringify(e)),
+          reward: 0.5,
+          success: true,
+          metadata: { ...(e.metadata || {}), key: e.key },
         }));
         result = await batch.insertEpisodes(episodes);
         break;
