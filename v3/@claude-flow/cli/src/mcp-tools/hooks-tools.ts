@@ -3127,6 +3127,125 @@ export const hooksTrajectoryEnd: MCPTool = {
   },
 };
 
+// ADR-0295 R2 — thin `hooks_task-completed` alias over the fork's own
+// trajectory pipeline. The fork deliberately replaced upstream's
+// `hooks_task-completed→recordTrajectory()` mechanism (upstream
+// `aca2280f1`/#2245) with the `hooks_intelligence_trajectory-*` +
+// ADR-0290 episode path, but left two fork-shipped consumers dangling:
+// the `ruflo hooks task-completed` CLI subcommand (commands/hooks.ts calls
+// this tool via callMCPTool — graceful no-op when absent: "patterns
+// pending") and the hive-mind-advanced SKILL. This alias closes both in
+// one move WITHOUT porting upstream's mechanism: it synthesizes a
+// one-step trajectory from {taskId, success, quality} and drives the SAME
+// real SONA + EWC++ path the trajectory handlers use (start→step→end),
+// so the surface produces real pattern-training evidence (content, not a
+// counter echo). `teammate-idle`/`agent_logs` stay removed (ADR-0210
+// stub-deletes). Mirrors upstream's behaviour (synthesize → record), not
+// its code.
+export const hooksTaskCompleted: MCPTool = {
+  name: 'hooks_task-completed',
+  description:
+    'Record a completed task into the SONA learning pipeline (alias over the ' +
+    'fork trajectory handlers — synthesizes a one-step trajectory and drives ' +
+    'real SONA/EWC++ learning). Returns honest patternsLearned + learningPath.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      taskId: { type: 'string', description: 'Completed task id' },
+      success: { type: 'boolean', description: 'Whether the task succeeded (default true)' },
+      quality: { type: 'number', description: 'Quality score 0-1 (default 0.85)' },
+      trainPatterns: {
+        type: 'boolean',
+        description: 'Drive SONA pattern training (default true; false = record-only)',
+      },
+      notifyLead: { type: 'boolean', description: 'Reflected back as leadNotified (default false)' },
+      agent: { type: 'string', description: 'Agent type for the trajectory (default coder)' },
+      task: { type: 'string', description: 'Optional task description (defaults to the taskId)' },
+    },
+    required: ['taskId'],
+  },
+  handler: async (params: Record<string, unknown>) => {
+    const taskId = params.taskId as string;
+    const success = params.success !== false;
+    const quality = typeof params.quality === 'number' ? (params.quality as number) : 0.85;
+    const trainPatterns = params.trainPatterns !== false;
+    const notifyLead = params.notifyLead === true;
+    const agent = (params.agent as string) || 'coder';
+    const task = (params.task as string) || `task-completed:${taskId}`;
+
+    if (!taskId) {
+      throw new Error('hooks_task-completed: taskId is required');
+    }
+
+    // record-only mode: skip the SONA path entirely, but stay honest.
+    if (!trainPatterns) {
+      return {
+        success,
+        taskId,
+        patternsLearned: 0,
+        leadNotified: notifyLead,
+        metrics: { duration: 0, quality, learningUpdates: 0 },
+        learningPath: 'recorded-only',
+      };
+    }
+
+    // Drive the SAME real pipeline the trajectory tools expose: synthesize a
+    // one-step trajectory and run it through start → step → end. No
+    // duplicated learning logic, no fabricated counts.
+    const started = (await hooksTrajectoryStart.handler({ task, agent })) as {
+      trajectoryId: string;
+    };
+    const trajectoryId = started.trajectoryId;
+
+    await hooksTrajectoryStep.handler({
+      trajectoryId,
+      action: `complete:${taskId}`,
+      result: success ? 'success' : 'failure',
+      quality,
+    });
+
+    const ended = (await hooksTrajectoryEnd.handler({
+      trajectoryId,
+      success,
+      feedback: `task-completed alias (taskId=${taskId}, quality=${quality})`,
+    })) as {
+      learning?: {
+        sonaUpdate?: boolean;
+        patternsExtracted?: number;
+        learningTimeMs?: number;
+      };
+      persisted?: boolean;
+      implementation?: string;
+    };
+
+    const sonaLearned = ended.learning?.sonaUpdate === true;
+    // patternsLearned reflects what the real SONA path actually did: 1 when
+    // SONA committed a pattern, else the steps it extracted (0 if nothing
+    // persisted). This is the honest delta — not a hardcoded literal.
+    const patternsLearned = sonaLearned ? 1 : (ended.learning?.patternsExtracted ?? 0);
+    const learningPath = sonaLearned
+      ? 'trajectory-pipeline'
+      : ended.persisted
+        ? 'persisted-only'
+        : 'recorded-only';
+
+    return {
+      success,
+      taskId,
+      patternsLearned,
+      leadNotified: notifyLead,
+      trajectoryId,
+      metrics: {
+        duration: ended.learning?.learningTimeMs ?? 0,
+        quality,
+        learningUpdates: patternsLearned,
+      },
+      learningPath,
+      implementation: ended.implementation ?? 'trajectory-pipeline',
+    };
+  },
+};
+
 // Pattern store/search hooks - REAL implementation using storeEntry
 export const hooksPatternStore: MCPTool = {
   name: 'hooks_intelligence_pattern-store',
@@ -4660,6 +4779,8 @@ export const hooksTools: MCPTool[] = [
   hooksTrajectoryStart,
   hooksTrajectoryStep,
   hooksTrajectoryEnd,
+  // ADR-0295 R2 — task-completed surface alias over the trajectory pipeline
+  hooksTaskCompleted,
   hooksPatternStore,
   hooksPatternSearch,
   hooksIntelligenceStats,
