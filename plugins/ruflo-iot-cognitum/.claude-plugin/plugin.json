@@ -1,7 +1,7 @@
 {
   "name": "ruflo-iot-cognitum",
   "description": "IoT workflow scaffolds composing memory_* primitives — telemetry/lifecycle/fleet/firmware/witness-verify thought-templates routed via mcp__ruflo__memory_store and memory_search (not hardware-bound enforcement)",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "author": {
     "name": "ruvnet",
     "url": "https://github.com/ruvnet"
