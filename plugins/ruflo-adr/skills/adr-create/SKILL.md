@@ -17,7 +17,7 @@ When a significant architectural decision needs to be recorded -- new technology
 
 ADRs follow canonical MADR 4.x (https://adr.github.io/madr/) with one extension: a `tags:` frontmatter field for cross-cutting categorisation.
 
-- **Filename**: `docs/adr/NNNN-<slug>.md` — 4-digit zero-padded number, lowercase kebab-case slug derived from the title. NO `ADR-` filename prefix.
+- **Filename**: `docs/adr/ADR-NNNN-<slug>.md` — `ADR-` prefix, 4-digit zero-padded number, lowercase kebab-case slug derived from the title. The `ADR-` prefix is REQUIRED: the canonical `agentdb index` glob is `ADR-*.md` and refuses (EXIT 1) any ADR file without it.
 - **H1**: `# <Title>` — title only, NO `ADR-NNNN:` prefix. The number lives in the filename.
 - **Metadata**: YAML frontmatter (NOT bullet-list metadata under H1).
 - **Status enum**: `proposed | accepted | rejected | deprecated | superseded`. Lowercase exactly as listed.
@@ -27,11 +27,11 @@ ADRs follow canonical MADR 4.x (https://adr.github.io/madr/) with one extension:
 
 ## Steps
 
-1. **Find next number** -- `Glob` for `docs/adr/*.md` and parse the leading 4-digit prefix from each filename to determine the next sequential ID (e.g. `0042`). Filter out non-ADR files (`README.md`, `INDEX.md`, `_template.md`). Create `docs/adr/` if it does not exist.
+1. **Find next number** -- `Glob` for `docs/adr/ADR-*.md` and parse the 4-digit number following the `ADR-` prefix in each filename to determine the next sequential ID (e.g. `0042`). Filter out non-ADR files (`README.md`, `INDEX.md`, `_template.md`). Create `docs/adr/` if it does not exist.
 
 2. **Slugify title** -- Convert the title argument to a lowercase, hyphen-separated slug (e.g., "Use PostgreSQL for persistence" becomes `use-postgresql-for-persistence`). Drop punctuation; collapse runs of hyphens.
 
-3. **Create ADR file** -- `Write` the file at `docs/adr/NNNN-<slug>.md` using the canonical MADR template:
+3. **Create ADR file** -- `Write` the file at `docs/adr/ADR-NNNN-<slug>.md` using the canonical MADR template:
 
    ```markdown
    ---
@@ -100,9 +100,9 @@ ADRs follow canonical MADR 4.x (https://adr.github.io/madr/) with one extension:
    <!-- Optional. Links, related ADRs, supporting evidence. -->
    ```
 
-4. **Store in AgentDB** -- Call `mcp__ruflo__agentdb_hierarchical-store` with:
-   - path: `adr/ADR-NNNN`
-   - value: `{ "id": "ADR-NNNN", "title": "<title>", "status": "proposed", "completed": false, "date": "<today>", "tags": [], "supersedes": [], "depends-on": [], "implements": [], "file": "docs/adr/NNNN-<slug>.md" }`
+4. **Store in AgentDB** -- Call `mcp__ruflo__agentdb_hierarchical-store` with (the live schema's required fields are `key` + `value`; optional `tier`):
+   - key: `adr/ADR-NNNN`
+   - value: `{ "id": "ADR-NNNN", "title": "<title>", "status": "proposed", "completed": false, "date": "<today>", "tags": [], "supersedes": [], "depends-on": [], "implements": [], "file": "docs/adr/ADR-NNNN-<slug>.md" }`
 
 5. **Find related ADRs** -- Call `mcp__ruflo__memory_search` with the title as query in namespace `adr-patterns` to find related decisions. If matches found, add them to the `## More Information` section and create causal edges with relation `depends-on`.
 

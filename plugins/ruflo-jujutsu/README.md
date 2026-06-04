@@ -40,7 +40,7 @@ All defined at `v3/@sparkleideas/cli/src/mcp-tools/analyze-tools.ts`:
 
 ## Compatibility
 
-- **CLI:** pinned to `@sparkleideas/cli` v3.6 major+minor.
+- **CLI:** pinned to `@sparkleideas/cli` v3.7 major+minor.
 - **Verification:** `bash plugins/ruflo-jujutsu/scripts/smoke.sh` is the contract.
 
 ## ADR-compliance integration

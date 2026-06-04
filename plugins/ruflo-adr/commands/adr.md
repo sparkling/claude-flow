@@ -9,8 +9,10 @@ Manage Architecture Decision Records. Parse $ARGUMENTS to determine the subcomma
 
 **`adr create <title>`** -- Create a new ADR with the next sequential number.
 1. Scan `docs/adr/` for existing ADRs to determine the next number
-2. Create `docs/adr/ADR-NNN-<slug>.md` from the standard template
-3. Store in AgentDB: `mcp__ruflo__agentdb_hierarchical-store` at path `adr/ADR-NNN`
+2. Create `docs/adr/ADR-NNNN-<slug>.md` from the standard template (4-digit
+   zero-padded number, `ADR-` prefix — the canonical form the `agentdb index`
+   glob `ADR-*.md` requires)
+3. Store in AgentDB: `mcp__ruflo__agentdb_hierarchical-store` with `key` = `adr/ADR-NNNN` and the record JSON as `value`
 4. Report the created file path and ADR number
 
 **`adr list`** -- List all ADRs with their status.
@@ -26,7 +28,7 @@ Manage Architecture Decision Records. Parse $ARGUMENTS to determine the subcomma
 **`adr supersede <old-id> <new-id>`** -- Mark an ADR as superseded by another.
 1. Update `<old-id>` status to "superseded by [ADR-<new-id>]"
 2. Add "Supersedes: ADR-<old-id>" link in `<new-id>`
-3. Create causal edge: `mcp__ruflo__agentdb_causal-edge` from old to new with relation "supersedes"
+3. Create causal edge: `mcp__ruflo__agentdb_causal-edge` with `sourceId` = `<old-id>`, `targetId` = `<new-id>`, `relation` = `"supersedes"` (the live schema's required fields)
 
 **`adr check`** -- Scan recent git changes for ADR violations.
 1. Run `git log --oneline -20` to get recent commits

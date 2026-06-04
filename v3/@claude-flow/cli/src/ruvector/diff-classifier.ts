@@ -692,6 +692,9 @@ const ANALYSIS_CACHE_TTL_MS = 3000; // 3 seconds
  */
 export async function analyzeDiff(options: {
   ref?: string;
+  // Inert — accepted for surface parity (the MCP analyze_diff tool advertises
+  // it) but never branched on; the analyzer is pure-JS both upstream and fork.
+  // Kept for a future ruvector-backed path rather than removed (ADR-0296 F2).
   useRuVector?: boolean;
   skipCache?: boolean;
 }): Promise<DiffAnalysisResult> {

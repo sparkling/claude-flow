@@ -45,7 +45,7 @@ export const analyzeDiffTool: MCPTool = {
       },
       useRuVector: {
         type: 'boolean',
-        description: 'Attempt to use ruvector for analysis (graceful fallback if unavailable)',
+        description: 'Reserved — currently inert. The analyzer is pure-JS both upstream and fork; analyzeDiff() accepts this flag for surface parity but does not branch on it. Kept so the schema stays stable if a ruvector-backed path is added later.',
         default: true,
       },
     },

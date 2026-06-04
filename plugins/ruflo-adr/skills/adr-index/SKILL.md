@@ -7,7 +7,7 @@ allowed-tools: Bash mcp__ruflo__memory_list mcp__ruflo__memory_search
 
 # ADR Index
 
-Persists every ADR under `*/docs/adr/` or `*/docs/adrs/` to the `adr-patterns` namespace, the hierarchical `adr/<id>` store, and every relationship (supersedes / depends-on / implements, plus their derived inverses superseded-by / depended-on-by / implemented-by) to the `causal-edges` namespace. The canonical builder is the `agentdb index` command (ADR-0273), which writes all three surfaces in one in-process pass via `recordCausalEdge`; the legacy `adr-edges` namespace is retired. Handles both ADR formats found in the Ruflo monorepo:
+Persists every ADR under `*/docs/adr/` or `*/docs/adrs/` to the `adr-patterns` namespace and every relationship (supersedes / depends-on / implements, plus their derived inverses superseded-by / depended-on-by / implemented-by) to the `adr-edges` namespace — the two namespaces `adr-verify` reads back. (The `agentdb index` CLI, ADR-0273, is the equivalent in-process builder; it writes the same `adr-patterns` + `adr-edges` surfaces and avoids the per-ADR MCP round-trips. `adr-edges` is the live edge namespace, not retired.) Handles both ADR formats found in the Ruflo monorepo:
 
 - **v3-style**: `# ADR-097: Title` heading + `**Status**: Proposed` line
 - **plugin-style**: YAML frontmatter (`id: ADR-NNNN`, `status: Proposed`)

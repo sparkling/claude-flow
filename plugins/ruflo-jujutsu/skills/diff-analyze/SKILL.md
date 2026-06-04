@@ -1,7 +1,7 @@
 ---
 name: diff-analyze
 description: Analyze git diffs for risk scoring, reviewer recommendations, and change classification
-argument-hint: "[--branch BRANCH] [--pr PR#]"
+argument-hint: "[ref] (a git ref e.g. HEAD~1, main..feature, or a commit hash; defaults to HEAD)"
 allowed-tools: mcp__ruflo__analyze_diff mcp__ruflo__analyze_diff-risk mcp__ruflo__analyze_diff-classify mcp__ruflo__analyze_diff-reviewers mcp__ruflo__analyze_diff-stats mcp__ruflo__analyze_file-risk Bash
 ---
 
@@ -15,7 +15,7 @@ Before submitting a PR or after making significant changes, analyze the diff to 
 
 ## Steps
 
-1. **Analyze diff** — call `mcp__ruflo__analyze_diff` with the diff content for a comprehensive analysis
+1. **Analyze diff** — call `mcp__ruflo__analyze_diff` with a `ref` arg (a git ref to compare against, e.g. `HEAD~1`, `main..feature`, or a commit hash; defaults to `HEAD`) for a comprehensive analysis
 2. **Risk score** — call `mcp__ruflo__analyze_diff-risk` for a quantified risk assessment
 3. **Classify changes** — call `mcp__ruflo__analyze_diff-classify` to categorize (feature, bugfix, refactor, etc.)
 4. **Get reviewers** — call `mcp__ruflo__analyze_diff-reviewers` for recommended reviewers based on code ownership
