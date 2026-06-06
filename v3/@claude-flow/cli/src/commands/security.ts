@@ -943,7 +943,13 @@ const defendCommand: Command = {
 
     output.writeln(output.dim(`Detection time: ${scanTime.toFixed(3)}ms`));
 
-    return { success: result.safe };
+    // ADR-0297 W1: the scan SUCCEEDED — it ran, detected, and rendered the
+    // threats above. `result.safe` is the FINDING (already surfaced in the
+    // rendered output and the JSON path's `safe` field), not a command-execution
+    // failure. Returning `success: result.safe` conflated "input unsafe" with
+    // "command failed", exiting 1 on every detected threat — inconsistent with
+    // the JSON path (which returns success:true). Exit 0 + render, per spec.
+    return { success: true };
   },
 };
 
