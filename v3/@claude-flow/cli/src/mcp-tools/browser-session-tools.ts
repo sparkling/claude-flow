@@ -77,14 +77,47 @@ interface ShellResult {
   error?: string;
 }
 
+// ADR-0298 R1 robustness: a stable, per-user npx cache so `npx -y <pkg>`
+// installs ONCE and is reused across calls/sessions (not re-fetched per call),
+// marked .metadata_never_index so macOS Spotlight does not scan a freshly-
+// installed binary mid-exec — the cause of transient status-126 ("cannot
+// execute") for ruvector/agent-browser under heavy churn + concurrent load.
+// Memoized; best-effort (null → fall back to the ambient default cache). No-op
+// on Linux (the marker is simply ignored).
+let _npxCacheDir: string | null | undefined;
+async function stableNpxCacheDir(): Promise<string | null> {
+  if (_npxCacheDir !== undefined) return _npxCacheDir;
+  try {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const dir = path.join(os.homedir(), '.ruflo', 'npx-cache');
+    mkdirSync(dir, { recursive: true });
+    try { writeFileSync(path.join(dir, '.metadata_never_index'), ''); } catch { /* best-effort */ }
+    _npxCacheDir = dir;
+  } catch {
+    _npxCacheDir = null;
+  }
+  return _npxCacheDir;
+}
+
 async function shell(cmd: string, args: string[], opts: { timeout?: number } = {}): Promise<ShellResult> {
   const { execFile } = await import('node:child_process');
   const { promisify } = await import('node:util');
   const run = promisify(execFile);
+  // npx shell-outs (ruvector, agent-browser) install fresh binaries; route them
+  // through the stable Spotlight-protected cache so they install once + are
+  // not scanned mid-exec (ADR-0298 R1).
+  let env: NodeJS.ProcessEnv | undefined;
+  if (cmd === 'npx') {
+    const cache = await stableNpxCacheDir();
+    if (cache) env = { ...process.env, npm_config_cache: cache };
+  }
   try {
     const { stdout, stderr } = await run(cmd, args, {
       timeout: opts.timeout ?? 30000,
       encoding: 'utf-8',
+      ...(env ? { env } : {}),
     });
     return { success: true, stdout, stderr };
   } catch (error) {
