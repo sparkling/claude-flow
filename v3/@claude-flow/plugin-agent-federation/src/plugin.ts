@@ -33,7 +33,7 @@ import { type FederationMessageType } from './domain/entities/federation-envelop
 // Today this resolves to WebSocketFallbackTransport (real ws networking);
 // when ruvnet/agentic-flow ships a native QUIC binding the same import
 // auto-upgrades with no plugin changes (set AGENTIC_FLOW_QUIC_NATIVE=1).
-// ADR-0297 R1: the agentic-flow VALUE bindings are now loaded via a
+// ADR-0297 R2: the agentic-flow VALUE bindings are now loaded via a
 // fork-native dynamic-import wrapper (./transport/agentic-flow-loader) so
 // a missing `agentic-flow` (an optional peer-dep) no longer crashes the
 // whole package at module-load — the federation CLI degrades gracefully

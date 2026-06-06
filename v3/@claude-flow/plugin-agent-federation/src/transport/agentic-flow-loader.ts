@@ -1,5 +1,5 @@
 /**
- * Agentic-flow federation transport loader (ADR-0297 R1, fork-native).
+ * Agentic-flow federation transport loader (ADR-0297 R2, fork-native).
  *
  * Fork-native equivalent of upstream alpha.16's `midstream-aware-loader`
  * (ADR-120). The load-bearing change vs the fork's prior alpha.5 shape:
