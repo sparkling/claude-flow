@@ -1605,8 +1605,33 @@ export const agentdbRateLimitStatus: MCPTool = {
     try {
       const ctrl = await getController<any>('rateLimiter');
       if (!ctrl) return { success: false, error: 'Rate limiter not available' };
-      const stats = typeof ctrl.getStats === 'function' ? ctrl.getStats() : {};
-      return { success: true, ...stats };
+      // ADR-0298 R2 (live method-surface probe): the registered `rateLimiter`
+      // controller is agentdb's bare `RateLimiter` token bucket — it exposes
+      // NEITHER getStats nor getStatus, so the prior `getStats()`-only handler
+      // returned a hollow `{ success: true }` with zero fields (DA F2). It DOES
+      // expose `getTokens()` plus readable `maxTokens`/`refillRate`/`tokens`/
+      // `lastRefill` bucket fields — a real state surface. Surface those; honor
+      // a getStats/getStatus surface first if a future controller adds one;
+      // and return an HONEST capability-absent envelope (no hollow success) if
+      // none of the above exist.
+      if (typeof ctrl.getStats === 'function') return { success: true, ...ctrl.getStats() };
+      if (typeof ctrl.getStatus === 'function') return { success: true, ...ctrl.getStatus() };
+      const hasTokens = typeof ctrl.getTokens === 'function';
+      const bucketFields = ['maxTokens', 'refillRate', 'tokens', 'lastRefill'].filter(
+        (k) => typeof ctrl[k] === 'number',
+      );
+      if (hasTokens || bucketFields.length > 0) {
+        const out: Record<string, unknown> = { success: true };
+        if (hasTokens) out.availableTokens = ctrl.getTokens();
+        for (const k of bucketFields) out[k] = ctrl[k];
+        return out;
+      }
+      return {
+        success: false,
+        error:
+          'Rate limiter controller exposes no readable state surface ' +
+          '(no getStats/getStatus/getTokens/bucket fields)',
+      };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
@@ -1645,10 +1670,31 @@ export const agentdbCircuitStatus: MCPTool = {
   },
   handler: async () => {
     try {
-      const ctrl = await getController<any>('circuitBreakerController');
+      // ADR-0298 R2 (live method-surface probe): TWO-part fix.
+      // (a) Registry KEY — the registry registers the controller under
+      //     `circuitBreaker` (controller-registry.ts createController case),
+      //     NOT `circuitBreakerController`; the old key resolved to undefined
+      //     → "Circuit breaker not available" on every call.
+      // (b) Method — the controller is polymorphic: agentdb's real
+      //     `CircuitBreaker` exposes `getStatus()` ({state,failures,lastFailure?})
+      //     and NO getStats; the registry's inline fallback (used when agentdb's
+      //     CircuitBreaker symbol is unavailable) exposes `getStats()`
+      //     ({state,failures,threshold}) and NO getStatus. The prior
+      //     `getStats()`-only handler shipped a hollow `{ success: true }` in
+      //     the real-agentdb path. Prefer getStatus(), fall back to getStats();
+      //     honest absence (no hollow success) if neither exists.
+      const ctrl = await getController<any>('circuitBreaker');
       if (!ctrl) return { success: false, error: 'Circuit breaker not available' };
-      const stats = typeof ctrl.getStats === 'function' ? ctrl.getStats() : {};
-      return { success: true, ...stats };
+      let stats: unknown;
+      if (typeof ctrl.getStatus === 'function') stats = ctrl.getStatus();
+      else if (typeof ctrl.getStats === 'function') stats = ctrl.getStats();
+      if (stats === undefined) {
+        return {
+          success: false,
+          error: 'Circuit breaker controller exposes no status surface (neither getStatus nor getStats)',
+        };
+      }
+      return { success: true, ...(stats as Record<string, unknown>) };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
