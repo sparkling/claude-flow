@@ -271,7 +271,7 @@ Listed in order of preference. Pick the first one whose preconditions are met fo
 
 **(b) `SendMessage` via Agent Teams — preferred for runtime cross-talk when workers must revise.** Spawn workers with `team_name: "<council-id>"`; workers exchange messages via `SendMessage({type:"message", recipient:"<peer-name>", content:"<text>", summary:"<one-line>"})`. Upstream-blessed inter-agent messaging primitive (USERGUIDE L1683 "Mailbox: SendMessage — Inter-agent messaging for coordination"). Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (typically pre-set in ruflo environments via `~/.claude/settings.json` `env` block). Use when:
 - Workers must respond to peer claims before settling their final position
-- You want the messaging surface that has hooks (`teammate-idle`, `task-completed`) and lifecycle (`TeamCreate`/`TeamDelete`) wired in
+- You want the messaging surface with Agent-Teams lifecycle (`TeamCreate`/`TeamDelete`) and the `task-completed` hook wired in. (`hooks_task-completed` is a fork MCP tool — a thin alias over the trajectory/SONA pipeline, ADR-0295 R2 — so a council worker can record a completed task into learning. `teammate-idle` is an Agent-Teams runtime event only; the fork ships no `hooks_teammate-idle` MCP tool, ADR-0210.)
 
 ```javascript
 // Queen sets up team
