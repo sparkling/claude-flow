@@ -21,6 +21,46 @@
 import type { MCPTool, MCPToolResult } from './types.js';
 import { findProjectRoot } from './types.js';
 import { validateIdentifier, validateText } from './validate-input.js';
+// ADR-0298 R3a: persist/read the browser-session AgentDB namespaces through the
+// in-process memory router — the SAME path the memory_* MCP tools use — instead
+// of shelling `npx @claude-flow/cli@latest memory …` per call. The shelled CLI
+// paid a ~26-31× cold-boot penalty (34.7-41s warm) on every browser-session
+// memory op (the C6 DA F1 finding), which masqueraded as harness timeouts.
+import { routeMemoryOp, ensureRouter } from '../memory/memory-router.js';
+
+/**
+ * ADR-0298 R3a: store a value in a browser-session AgentDB namespace IN-PROCESS.
+ * Fail-loud — the caller decides whether a failure is fatal (the session index
+ * is best-effort; the RVF container is the source of truth).
+ */
+async function memoryStoreInProcess(
+  namespace: string,
+  key: string,
+  value: string,
+): Promise<{ success: boolean; error?: string }> {
+  await ensureRouter();
+  const res = await routeMemoryOp({ type: 'store', key, value, namespace, generateEmbedding: true });
+  return { success: !!res.success, error: res.success ? undefined : String((res as Record<string, unknown>).error ?? 'store failed') };
+}
+
+/**
+ * ADR-0298 R3a: read a value from a browser-session AgentDB namespace IN-PROCESS
+ * by exact (namespace, key). Returns the stored content string on a hit, or a
+ * structured miss; throws on a real router error (fail-loud per R3a).
+ */
+async function memoryRetrieveInProcess(
+  namespace: string,
+  key: string,
+): Promise<{ found: boolean; content?: string }> {
+  await ensureRouter();
+  const res = await routeMemoryOp({ type: 'get', key, namespace });
+  const entry = (res as Record<string, unknown>).entry as Record<string, unknown> | undefined;
+  if (res.found && entry) {
+    const content = entry.content;
+    return { found: true, content: typeof content === 'string' ? content : JSON.stringify(content) };
+  }
+  return { found: false };
+}
 
 const RUVECTOR_PIN = 'ruvector@0.2.25';
 const RVF_DIR_DEFAULT = '.ruflo/browser-sessions';
@@ -222,7 +262,9 @@ export const browserSessionTools: MCPTool[] = [
       const compact = await shell('npx', ['-y', RUVECTOR_PIN, 'rvf', 'compact', input.rvf_path as string]);
       if (!compact.success) return fail('rvf compact failed', { detail: compact.error, stderr: compact.stderr });
 
-      // 3. AgentDB index — best-effort via memory store (claude-flow bridges)
+      // 3. AgentDB index — best-effort, IN-PROCESS (ADR-0298 R3a: no per-call
+      // CLI cold-boot). Index failure is non-fatal — the RVF container is the
+      // source of truth.
       const indexValue = JSON.stringify({
         rvf_id: input.session,
         rvf_path: input.rvf_path,
@@ -232,18 +274,24 @@ export const browserSessionTools: MCPTool[] = [
         tags: input.tags ?? [],
         ended_at: new Date().toISOString(),
       });
-      const idx = await shell('npx', ['-y', '@claude-flow/cli@latest', 'memory', 'store',
-        '--namespace', 'browser-sessions',
-        '--key', input.session as string,
-        '--value', indexValue], { timeout: 60000 });
-      // Index failure is non-fatal — the RVF container is the source of truth.
+      let idxOk = false;
+      let idxError: string | undefined;
+      try {
+        const idx = await memoryStoreInProcess('browser-sessions', input.session as string, indexValue);
+        idxOk = idx.success;
+        idxError = idx.error;
+      } catch (e) {
+        // Non-fatal: surface the error in the envelope but still return ok —
+        // the session's durable artifact is the compacted RVF container above.
+        idxError = e instanceof Error ? e.message : String(e);
+      }
 
       return ok({
         sessionId: input.session,
         rvfPath: input.rvf_path,
         verdict,
-        indexed: idx.success,
-        indexError: idx.success ? undefined : (idx.stderr || idx.error),
+        indexed: idxOk,
+        indexError: idxOk ? undefined : idxError,
       });
     },
   },
@@ -322,14 +370,21 @@ export const browserSessionTools: MCPTool[] = [
     handler: async (input) => {
       const vN = validateText(input.name as string, 'name');
       if (!vN.valid) return fail(vN.error || 'invalid name');
-      const r = await shell('npx', ['-y', '@claude-flow/cli@latest', 'memory', 'retrieve',
-        '--namespace', 'browser-templates',
-        '--key', input.name as string], { timeout: 60000 });
-      if (!r.success) return fail('template fetch failed', { detail: r.error, stderr: r.stderr });
+      // ADR-0298 R3a: read the template IN-PROCESS (no per-call CLI cold-boot).
+      // A real router error fails loud; an honest miss returns found:false.
+      let r: { found: boolean; content?: string };
+      try {
+        r = await memoryRetrieveInProcess('browser-templates', input.name as string);
+      } catch (e) {
+        return fail('template fetch failed', { detail: e instanceof Error ? e.message : String(e) });
+      }
       return ok({
         templateName: input.name,
-        recipe: r.stdout,
-        nextStep: 'Caller dispatches the recipe via browser_* tools; persist updated selectors to browser-selectors on success.',
+        found: r.found,
+        recipe: r.found ? r.content : null,
+        nextStep: r.found
+          ? 'Caller dispatches the recipe via browser_* tools; persist updated selectors to browser-selectors on success.'
+          : `No template named "${input.name}" in the browser-templates namespace.`,
       });
     },
   },
@@ -358,10 +413,15 @@ export const browserSessionTools: MCPTool[] = [
     handler: async (input) => {
       const vH = validateText(input.host as string, 'host');
       if (!vH.valid) return fail(vH.error || 'invalid host');
-      const r = await shell('npx', ['-y', '@claude-flow/cli@latest', 'memory', 'retrieve',
-        '--namespace', 'browser-cookies',
-        '--key', input.host as string], { timeout: 60000 });
-      if (!r.success) return fail('cookie lookup failed', { detail: r.error, stderr: r.stderr });
+      // ADR-0298 R3a: read the vault handle IN-PROCESS (no per-call CLI
+      // cold-boot). A real router error fails loud; an honest miss returns
+      // found:false.
+      let r: { found: boolean; content?: string };
+      try {
+        r = await memoryRetrieveInProcess('browser-cookies', input.host as string);
+      } catch (e) {
+        return fail('cookie lookup failed', { detail: e instanceof Error ? e.message : String(e) });
+      }
       // The convention: the value blob includes a vault_handle, expiry, and
       // OPTIONALLY an aidefence_verdict attached by the writer (browser-login).
       // This tool surfaces whatever the writer stored; it does NOT run a scan
@@ -369,8 +429,11 @@ export const browserSessionTools: MCPTool[] = [
       // Raw values do not enter this namespace (browser-login is responsible).
       return ok({
         host: input.host,
-        vault: r.stdout,
-        nextStep: 'Caller mounts the handle via the browser runner; the raw cookie is materialized only inside the browser process, never returned to the model.',
+        found: r.found,
+        vault: r.found ? r.content : null,
+        nextStep: r.found
+          ? 'Caller mounts the handle via the browser runner; the raw cookie is materialized only inside the browser process, never returned to the model.'
+          : `No vaulted cookie for host "${input.host}" in the browser-cookies namespace.`,
       });
     },
   },
