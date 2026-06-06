@@ -21,6 +21,14 @@ import { spawnSync } from 'node:child_process';
 const PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 
 // USD per 1M tokens — kept in sync with REFERENCE.md "Model pricing" table.
+// ADR-0298 X1 (freshness note — DA F3): the `haiku` row carries Haiku-3-era
+// rates (0.25/1.25). modelTier() maps EVERY model containing "haiku" (incl.
+// claude-haiku-4-5) to this tier, so a Haiku-4.5 call is currently priced at
+// the older Haiku-3 rate. The sibling `bench.mjs` already uses the current
+// Haiku-4.5 rate (1.00/5.00, ANTHROPIC_PRICING['claude-haiku-4-5']). The two
+// tables disagree; this is a recorded freshness gap, NOT changed here — bump
+// these numbers (and REFERENCE.md row "Haiku") when refreshing the pricing
+// table, keeping cache_write/cache_read in step.
 const PRICING = {
   haiku:  { input: 0.25,  output: 1.25,  cache_write: 0.30,  cache_read: 0.03 },
   sonnet: { input: 3.00,  output: 15.00, cache_write: 3.75,  cache_read: 0.30 },

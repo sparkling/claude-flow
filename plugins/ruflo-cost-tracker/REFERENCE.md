@@ -12,6 +12,8 @@ Companion reference for `cost-analyst`. The agent prompt deliberately stays lean
 
 Prices are public-list and may need a refresh — verify against the Anthropic pricing page when running quarterly cost reports.
 
+> **Freshness note (ADR-0298 X1):** the **Haiku** row carries Haiku-3-era rates ($0.25 / $1.25). `track.mjs`'s `modelTier()` maps every model containing "haiku" — including `claude-haiku-4-5` — to this row, so a Haiku-4.5 call is currently costed at the older Haiku-3 rate. The sibling `bench.mjs` already lists Haiku-4.5 at $1.00 / $5.00. Refresh this row (and `track.mjs`'s `PRICING.haiku`) together when updating.
+
 ## Cost attribution formula
 
 ```
