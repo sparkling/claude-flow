@@ -24,6 +24,11 @@ import { validateIdentifier, validateText } from './validate-input.js';
 
 const RUVECTOR_PIN = 'ruvector@0.2.25';
 const RVF_DIR_DEFAULT = '.ruflo/browser-sessions';
+// ADR-0298 R1: the RVF cognitive container for a browser session. 768 to match
+// the fork's mpnet embedding model (ADR-0052); the container itself holds
+// trajectory segments, not embeddings written by these tools, so any positive
+// dimension is valid — 768 keeps it consistent with the fork's vector axis.
+const RVF_DIMENSION = 768;
 
 interface ShellResult {
   success: boolean;
@@ -116,12 +121,29 @@ export const browserSessionTools: MCPTool[] = [
       const dir = (input.rvf_dir as string | undefined) ?? (await ensureSessionsDir());
       const rvfPath = path.join(dir, `${sessionId}.rvf`);
 
-      // 1. RVF allocate
-      const rvf = await shell('npx', ['-y', RUVECTOR_PIN, 'rvf', 'create', rvfPath, '--kind', 'browser-session'], { timeout: 60000 });
+      // 1. RVF allocate.
+      // ADR-0298 R1: ruvector@0.2.25 `rvf create <path>` takes a POSITIONAL path
+      // and a REQUIRED `-d/--dimension <n>`; there is no `--kind` flag. The
+      // fork's hand-port (Batch S) captured a pre-Issue-#2015 form (`--kind
+      // browser-session`, no `-d`) that ruvector rejects with exit 1
+      // ("required option '-d, --dimension' not specified") — record died at
+      // step-1, one step earlier than upstream. Fix: drop `--kind`, pass
+      // `--dimension <RVF_DIMENSION>`.
+      const rvf = await shell('npx', ['-y', RUVECTOR_PIN, 'rvf', 'create', rvfPath, '--dimension', String(RVF_DIMENSION)], { timeout: 60000 });
       if (!rvf.success) return fail('rvf create failed', { detail: rvf.error, stderr: rvf.stderr, sessionId, rvfPath });
 
-      // 2. trajectory-begin
-      const tb = await shell('npx', ['-y', RUVECTOR_PIN, 'hooks', 'trajectory-begin', '--session-id', sessionId, '--task', input.task as string]);
+      // 2. trajectory-begin.
+      // ADR-0298 R1 (UPSTREAM-BROKEN-SHARED, same skew class as ADR-0293 D1):
+      // ruvector@0.2.25 `hooks trajectory-begin` takes `-c/--context` (required)
+      // and `-a/--agent`; it has NO `--session-id`/`--task`. The fork passed the
+      // stale `--session-id`/`--task` shape, which ruvector rejects with exit 1.
+      // Map the human task into `--context` and tag the agent `browser-session`.
+      // NB: ruvector's trajectory state is process-local (it does not reload an
+      // active trajectory across separate CLI invocations), so step/end below
+      // run as their own processes and emit a soft "no active trajectory" notice
+      // while still exiting 0 — the RVF container (compacted in browser_session_end
+      // and read back by browser_session_replay) is the durable source of truth.
+      const tb = await shell('npx', ['-y', RUVECTOR_PIN, 'hooks', 'trajectory-begin', '--context', input.task as string, '--agent', 'browser-session']);
       if (!tb.success) return fail('trajectory-begin failed', { detail: tb.error, stderr: tb.stderr, sessionId, rvfPath });
 
       // 3. browser_open via agent-browser
@@ -133,11 +155,14 @@ export const browserSessionTools: MCPTool[] = [
         }
       }
 
-      // 4. log the open as the first trajectory step
+      // 4. log the open as the first trajectory step.
+      // ADR-0298 R1: ruvector@0.2.25 `hooks trajectory-step` takes `-a/--action`
+      // (required) and `-r/--result`; it has NO `--session-id`/`--args`. The URL
+      // is already captured in the RVF container + the response envelope, so the
+      // step records action+result only. Best-effort (return value unchecked) —
+      // the open already succeeded above and the RVF container is authoritative.
       await shell('npx', ['-y', RUVECTOR_PIN, 'hooks', 'trajectory-step',
-        '--session-id', sessionId,
         '--action', 'browser_open',
-        '--args', JSON.stringify({ url: input.url }),
         '--result', 'ok']);
 
       return ok({
@@ -176,10 +201,21 @@ export const browserSessionTools: MCPTool[] = [
       const verdict = input.verdict as string;
       if (!['pass', 'fail', 'partial'].includes(verdict)) return fail(`invalid verdict: ${verdict}`);
 
-      // 1. trajectory-end
-      const te = await shell('npx', ['-y', RUVECTOR_PIN, 'hooks', 'trajectory-end',
-        '--session-id', input.session as string,
-        '--verdict', verdict]);
+      // 1. trajectory-end.
+      // ADR-0298 R1: ruvector@0.2.25 `hooks trajectory-end` takes `--success`
+      // (boolean flag) and `--quality <0-1>`; it has NO `--session-id`/`--verdict`.
+      // Map the fork's verdict onto that shape: pass → --success --quality 1,
+      // partial → --quality 0.5, fail → --quality 0. (ruvector internally also
+      // pins --success to quality 0.8, but the explicit --quality keeps the
+      // intent legible.) ruvector exits 0 here even when its process-local
+      // trajectory state has no active trajectory to close (the cross-process
+      // limitation noted in browser_session_record) — so the `te.success`
+      // gate reflects "the end hook ran", and the rvf compact below is the
+      // operation that actually finalizes the durable container.
+      const teArgs = ['-y', RUVECTOR_PIN, 'hooks', 'trajectory-end',
+        '--quality', verdict === 'pass' ? '1' : verdict === 'partial' ? '0.5' : '0'];
+      if (verdict === 'pass') teArgs.push('--success');
+      const te = await shell('npx', teArgs);
       if (!te.success) return fail('trajectory-end failed', { detail: te.error, stderr: te.stderr });
 
       // 2. rvf compact
