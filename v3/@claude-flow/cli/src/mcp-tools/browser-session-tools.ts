@@ -93,7 +93,9 @@ async function stableNpxCacheDir(): Promise<string | null> {
     const { mkdirSync, writeFileSync } = await import('node:fs');
     const dir = path.join(os.homedir(), '.ruflo', 'npx-cache');
     mkdirSync(dir, { recursive: true });
-    try { writeFileSync(path.join(dir, '.metadata_never_index'), ''); } catch { /* best-effort */ }
+    // Spotlight opt-out marker (best-effort). If even this write fails the dir
+    // is unusable, so let it fall to the outer catch → null → ambient cache.
+    writeFileSync(path.join(dir, '.metadata_never_index'), '');
     _npxCacheDir = dir;
   } catch {
     _npxCacheDir = null;
