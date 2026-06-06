@@ -408,7 +408,15 @@ export const transferTools: MCPTool[] = [
           return createResult({ error: result.error || 'Failed to discover registry' }, true);
         }
         const official = getOfficialPlugins(result.registry);
-        return createResult(official);
+        // ADR-0299 F4: surface the discovery provenance in the envelope. The
+        // demo-fallback catalog returns real-shaped entries; without
+        // source/fromDemo the marker was stderr-only and the caller saw
+        // fabricated-shaped data with no disclosure.
+        return createResult({
+          source: result.source,
+          fromDemo: result.fromDemo === true,
+          plugins: official,
+        });
       } catch (error) {
         return createResult({ error: (error as Error).message }, true);
       }

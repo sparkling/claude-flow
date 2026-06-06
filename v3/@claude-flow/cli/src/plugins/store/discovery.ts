@@ -107,6 +107,13 @@ export interface PluginDiscoveryResult {
   registry?: PluginRegistry;
   cid?: string;
   source?: string;
+  /**
+   * True when the registry came from the demo-fallback catalog rather than a
+   * real IPFS+signature-verified fetch (ADR-0299 F4: surfaced in tool
+   * envelopes so callers can tell fabricated-shaped demo entries from live
+   * registry data — previously this was disclosed only via stderr logging).
+   */
+  fromDemo?: boolean;
   fromCache?: boolean;
   error?: string;
 }
@@ -116,7 +123,8 @@ export interface PluginDiscoveryResult {
  */
 export class PluginDiscoveryService {
   private config: PluginStoreConfig;
-  private cache: Map<string, { registry: PluginRegistry; timestamp: number }> = new Map();
+  private cache: Map<string, { registry: PluginRegistry; timestamp: number; fromDemo?: boolean }> =
+    new Map();
 
   constructor(config: Partial<PluginStoreConfig> = {}) {
     this.config = { ...DEFAULT_PLUGIN_STORE_CONFIG, ...config };
@@ -146,7 +154,10 @@ export class PluginDiscoveryService {
         success: true,
         registry: cached.registry,
         fromCache: true,
-        source: registry.name,
+        // Preserve the demo marker across cache hits — a demo registry cached
+        // under this key must not launder into "real" provenance (ADR-0299 F4).
+        fromDemo: cached.fromDemo === true,
+        source: cached.fromDemo === true ? `${registry.name} (demo)` : registry.name,
       };
     }
 
@@ -257,10 +268,11 @@ export class PluginDiscoveryService {
       ],
     };
 
-    // Cache the demo registry
+    // Cache the demo registry (flagged, so cache hits keep the disclosure)
     this.cache.set(registry.ipnsName, {
       registry: demoRegistry,
       timestamp: Date.now(),
+      fromDemo: true,
     });
 
     return {
@@ -268,6 +280,7 @@ export class PluginDiscoveryService {
       registry: demoRegistry,
       cid: `bafybeiplugin${crypto.randomBytes(16).toString('hex')}`,
       source: `${registry.name} (demo)`,
+      fromDemo: true,
       fromCache: false,
     };
   }
