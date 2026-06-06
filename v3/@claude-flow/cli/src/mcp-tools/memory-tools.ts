@@ -1177,7 +1177,13 @@ export const memoryTools: MCPTool[] = [
           const dim = embCfg?.dimension ?? embCfg?.dim;
           embeddingLabel = dim ? `${model} (${dim}-dim)` : String(model);
         }
-      } catch { /* accessor unavailable — keep the fork-default full model name */ }
+      } catch (e) {
+        // accessor unavailable — keep the fork-default full model name
+        // (feedback-full-model-names). Surface the probe failure rather than
+        // swallowing every error type silently (ADR-0191 undiscriminating-catch
+        // gate); mirrors the [memory_search] fall-through logging in this file.
+        console.error(`[bridge-status] embedding-config probe fall-through: ${e instanceof Error ? e.message : String(e)}`);
+      }
       const bridge = { status: claudeMemoryEntries > 0 ? 'connected' : 'not-synced', embedding: embeddingLabel };
 
       if (includeProvenance) {
