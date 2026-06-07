@@ -169,7 +169,7 @@ Install only when ALL hold:
 - User confirmed the install
 
 Discovery: \`ruflo plugins --help\`.
-Install: \`/plugin install ruflo-<name>@ruflo\` (after \`/plugin marketplace add sparkling/ruflo\`).
+Install: \`/plugin install ruflo-<name>@sparkleideas\` (after \`/plugin marketplace add sparkling/ruflo\`).
 Tell user to run \`/reload-plugins\` if commands don't appear post-install.`;
 }
 

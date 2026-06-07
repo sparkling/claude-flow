@@ -26,16 +26,17 @@ const CONFIG = {
 
 const CWD = process.cwd();
 
-// Read package version once at startup. Probe the plugin's own install
-// location first — `~/.claude/plugins/marketplaces/ruflo/package.json` — so
-// users who installed via `/plugin install ruflo@ruflo` see the real version,
-// not the hardcoded fallback (#1951).
+// Read package version once at startup. Probe the fork marketplace's install
+// location first — `~/.claude/plugins/marketplaces/sparkleideas/package.json`
+// (ADR-0301: the `ruflo` marketplace name now belongs to upstream, whose
+// package.json would report the wrong version) — so users who installed via
+// `/plugin install` see the real version, not the hardcoded fallback (#1951).
 let pkgVersion = '3.5';
 try {
   const os = require('os');
   const home = os.homedir();
   const pkgPaths = [
-    path.join(home, '.claude', 'plugins', 'marketplaces', 'ruflo', 'package.json'),
+    path.join(home, '.claude', 'plugins', 'marketplaces', 'sparkleideas', 'package.json'),
     path.join(CWD, 'node_modules', '@claude-flow', 'cli', 'package.json'),
     path.join(CWD, 'node_modules', 'ruflo', 'package.json'),
     path.join(CWD, 'v3', '@claude-flow', 'cli', 'package.json'),

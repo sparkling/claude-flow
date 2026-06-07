@@ -1,6 +1,6 @@
 {
-  "name": "ruflo",
-  "description": "RuFlo Marketplace: Claude Code native agents, swarms, workers, and MCP tools for continuous software engineering",
+  "name": "sparkleideas",
+  "description": "RuFlo Marketplace (sparkling/ruflo fork): Claude Code native agents, swarms, workers, and MCP tools for continuous software engineering",
   "owner": {
     "name": "sparkling",
     "url": "https://github.com/sparkling"

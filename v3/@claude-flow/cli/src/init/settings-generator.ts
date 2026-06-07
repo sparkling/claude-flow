@@ -6,6 +6,61 @@
 import type { InitOptions, HooksConfig, PlatformInfo } from './types.js';
 import { detectPlatform } from './types.js';
 
+// ADR-0301 — fork marketplace identity. The marketplace is named
+// `sparkleideas` (NOT `ruflo`): Claude Code marketplace names are
+// machine-global and a same-name `marketplace add` replaces the prior
+// registration, so sharing upstream's `ruflo` name let upstream installs
+// hijack the fork's marketplace (2026-06-04 incident). With distinct names,
+// upstream (`…@ruflo` from ruvnet/ruflo) and the fork (`…@sparkleideas` from
+// sparkling/ruflo) coexist on one machine.
+const MARKETPLACE_NAME = 'sparkleideas';
+const MARKETPLACE_REPO = 'sparkling/ruflo';
+
+// Must mirror `.claude-plugin/marketplace.json` `plugins[].name` (repo root).
+// The cli package cannot import that file (outside the package root at
+// publish time), so the list is pinned here and drift is gated by
+// `__tests__/arch/adr0301-marketplace-identity.arch.test.ts`, which compares
+// this list against the manifest.
+const MARKETPLACE_PLUGINS = [
+  'ruflo-core',
+  'ruflo-swarm',
+  'ruflo-loop-workers',
+  'ruflo-security-audit',
+  'ruflo-rag-memory',
+  'ruflo-testgen',
+  'ruflo-docs',
+  'ruflo-autopilot',
+  'ruflo-intelligence',
+  'ruflo-agentdb',
+  'ruflo-aidefence',
+  'ruflo-browser',
+  'ruflo-jujutsu',
+  'ruflo-wasm',
+  'ruflo-workflows',
+  'ruflo-daa',
+  'ruflo-ruvllm',
+  'ruflo-rvf',
+  'ruflo-plugin-creator',
+  'ruflo-goals',
+  'ruflo-adr',
+  'ruflo-cost-tracker',
+  'ruflo-ddd',
+  'ruflo-federation',
+  'ruflo-iot-cognitum',
+  'ruflo-knowledge-graph',
+  'ruflo-market-data',
+  'ruflo-migrations',
+  'ruflo-neural-trader',
+  'ruflo-observability',
+  'ruflo-ruvector',
+  'ruflo-sparc',
+  'ruflo-hive-mind',
+];
+
+// Default-ON posture (ADR-0301): every fork plugin is enabled except the
+// security-audit gate, which projects opt into deliberately.
+const PLUGINS_DISABLED_BY_DEFAULT = new Set(['ruflo-security-audit']);
+
 /**
  * Generate the complete settings.json content
  */
@@ -34,13 +89,40 @@ export function generateSettings(options: InitOptions): object {
       'Bash(npx @claude-flow/cli:*)',
       'Bash(npx claude-flow:*)',
       'Bash(node "$(git rev-parse --show-toplevel)"/.claude/*)',
-      'mcp__claude-flow__:*',
+      // ADR-0301 — `mcp__<server>__:*` is INVALID allow-rule syntax (Claude
+      // Code permits globs only in the tool position after the literal
+      // `mcp__<server>__` prefix) and was silently skipped by /doctor,
+      // leaving MCP tools un-allowlisted in every init'd project.
+      'mcp__claude-flow__*',
     ],
     deny: [
       'Read(./.env)',
       'Read(./.env.*)',
     ],
   };
+
+  // ADR-0301 — Claude Code's native team-marketplace flow: declaring the
+  // marketplace + enabled plugins in project settings makes Claude Code
+  // prompt once on folder trust and install everything natively — no manual
+  // `/plugin marketplace add` / `/plugin install` on any machine, and
+  // updates ride the marketplace refresh. `sparkling/ruflo` is public, so
+  // background auto-update needs no auth token (note: third-party
+  // marketplaces default auto-update OFF; enable per machine via
+  // `/plugin` → Marketplaces → Enable auto-update).
+  settings.extraKnownMarketplaces = {
+    [MARKETPLACE_NAME]: {
+      source: {
+        source: 'github',
+        repo: MARKETPLACE_REPO,
+      },
+    },
+  };
+  settings.enabledPlugins = Object.fromEntries(
+    MARKETPLACE_PLUGINS.map((p) => [
+      `${p}@${MARKETPLACE_NAME}`,
+      !PLUGINS_DISABLED_BY_DEFAULT.has(p),
+    ]),
+  );
 
   // #1670 — RuFlo attribution (Co-Authored-By trailer + PR footer) is now
   // OPT-IN. Default behavior no longer injects a third-party Co-Authored-By

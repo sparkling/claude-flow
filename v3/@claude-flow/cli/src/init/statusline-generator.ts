@@ -676,15 +676,17 @@ function generateStatusline() {
   const lines = [];
 
   // Header — read version from the FIRST package.json we find, preferring
-  // the plugin install at ~/.claude/plugins/marketplaces/ruflo/package.json.
+  // the plugin install at ~/.claude/plugins/marketplaces/sparkleideas/package.json
+  // (the fork marketplace per ADR-0301; the "ruflo" name now belongs to
+  // upstream, whose package.json would report the WRONG version here).
   // The previous list only checked project-local node_modules, so plugin
   // users saw the hard-coded fallback (V3.5) even on newer alphas (#1951).
   let pkgVersion = '3.6';
   try {
     const home = require('os').homedir();
     const pkgPaths = [
-      // 1. The plugin's own root (installed via /plugin install).
-      path.join(home, '.claude', 'plugins', 'marketplaces', 'ruflo', 'package.json'),
+      // 1. The fork marketplace root (installed via /plugin install).
+      path.join(home, '.claude', 'plugins', 'marketplaces', 'sparkleideas', 'package.json'),
       // 2. Project-local @claude-flow/cli — npm-style install.
       path.join(CWD, 'node_modules', '@claude-flow', 'cli', 'package.json'),
       // 3. Project-local ruflo umbrella.

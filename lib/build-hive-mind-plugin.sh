@@ -367,7 +367,7 @@ Queen-led collective intelligence with consensus mechanisms for sparkling/ruflo.
 ## Install
 
     /plugin marketplace add sparkling/ruflo
-    /plugin install ruflo-hive-mind@ruflo
+    /plugin install ruflo-hive-mind@sparkleideas
 
 ## What's in the box
 
