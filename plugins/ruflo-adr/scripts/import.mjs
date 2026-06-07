@@ -140,6 +140,11 @@ function parseLinks(text, selfId) {
       ['amends', 'amends'],
       ['related', 'related'],
       ['depends-on', 'depends-on'],
+      // Council-414 canonical predicate: `implements` (this ADR is the
+      // technical artefact realising a parent decision). Direction self → ref
+      // (like depends-on). Was previously UNPARSED — implements edges on the
+      // corpus (10 ADRs) were silently dropped at index time.
+      ['implements', 'implements'],
     ]) {
       const re = new RegExp(`^${field}:\\s*\\[?([^\\]\\n]+)\\]?$`, 'mi');
       const m = re.exec(fm[1]);
@@ -162,6 +167,8 @@ function parseLinks(text, selfId) {
   if (related) for (const ref of extractAdrRefs(related[1])) out.push({ from: selfId, to: ref, relation: 'related' });
   const dependsOn = /\*\*Depends[ -]on\*\*:\s*(.+)$/m.exec(text);
   if (dependsOn) for (const ref of extractAdrRefs(dependsOn[1])) out.push({ from: selfId, to: ref, relation: 'depends-on' });
+  const impl = /\*\*Implements\*\*:\s*(.+)$/m.exec(text);
+  if (impl) for (const ref of extractAdrRefs(impl[1])) out.push({ from: selfId, to: ref, relation: 'implements' });
   return out;
 }
 

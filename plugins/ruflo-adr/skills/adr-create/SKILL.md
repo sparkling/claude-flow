@@ -38,11 +38,10 @@ ADRs follow canonical MADR 4.x (https://adr.github.io/madr/) with one extension:
    status: proposed
    completed: false
    date: <today's date YYYY-MM-DD>
-   decision-makers:
-     - <leave blank for author to fill>
-   consulted: []
-   informed: []
    tags: []
+   supersedes: []
+   depends-on: []
+   implements: []
    ---
 
    # <Title>

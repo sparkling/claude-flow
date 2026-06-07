@@ -34,7 +34,7 @@ This plugin's two MCP/CLI surfaces:
 | Surface | Invocation |
 |---------|-----------|
 | **MCP**: dispatch the `testgaps` worker | `mcp tool call hooks_worker-dispatch --json -- '{"trigger":"testgaps"}'` |
-| **CLI**: `coverage-gaps` (table of gaps) | `npx @sparkleideas/cli@latest hooks coverage-gaps --format table --limit 20` |
+| **CLI**: `coverage-gaps` (report gaps) | `npx @sparkleideas/cli@latest hooks coverage-gaps --threshold 80 --critical-only` |
 | **CLI**: `coverage-route` (route a task by gap) | `npx @sparkleideas/cli@latest hooks coverage-route --task "add auth tests"` |
 | **CLI**: `coverage-suggest` (suggest tests for a path) | `npx @sparkleideas/cli@latest hooks coverage-suggest --path src/` |
 
