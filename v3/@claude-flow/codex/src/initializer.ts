@@ -152,7 +152,7 @@ export class CodexInitializer {
       // Register MCP server with Codex
       const mcpResult = await this.registerMCPServer();
       if (mcpResult.registered) {
-        filesCreated.push('MCP server (claude-flow) registered');
+        filesCreated.push('MCP server (ruflo) registered');
       }
       if (mcpResult.warning) {
         warnings.push(mcpResult.warning);
@@ -314,50 +314,53 @@ export class CodexInitializer {
   }
 
   /**
-   * Register claude-flow as MCP server with Codex
+   * Register the fork ruflo MCP server with Codex
    */
   private async registerMCPServer(): Promise<{ registered: boolean; warning?: string }> {
     try {
       const { execSync } = await import('child_process');
 
-      // Check if codex CLI is available
-      try {
-        execSync('which codex', { stdio: 'pipe' });
-      } catch {
-        return {
-          registered: false,
-          warning: 'Codex CLI not found. Run: codex mcp add claude-flow -- npx claude-flow mcp start',
-        };
-      }
+      // Register the FORK ruflo MCP server with Codex — realm-correct: the
+      // server name is `ruflo` and the launch command is the fork binary
+      // `npx -y @sparkleideas/ruflo@latest mcp start` (NOT the upstream
+      // `claude-flow`, which this initializer previously hard-coded and which
+      // registered the wrong server). Mirrors the Claude-Code side's
+      // `claude mcp add ruflo -- npx -y @sparkleideas/ruflo@latest mcp start`.
+      const ADD = 'mcp add ruflo -- npx -y @sparkleideas/ruflo@latest mcp start';
+      // Manual/fallback form pins the current Codex CLI via npx, so a missing
+      // or too-old global codex (e.g. brew's stale 0.27.0, whose `mcp` is
+      // server-only and has no `add` subcommand) cannot block registration.
+      const MANUAL = `npx -y @openai/codex@latest ${ADD}`;
 
-      // Check if already registered
+      // Already registered? (codex may be absent here — ignore and fall through.)
       try {
         const list = execSync('codex mcp list 2>&1', { encoding: 'utf-8' });
-        if (list.includes('claude-flow')) {
-          return { registered: true }; // Already registered
+        if (list.includes('ruflo')) {
+          return { registered: true };
         }
       } catch {
-        // Ignore list errors
+        // Ignore list errors.
       }
 
-      // Register the MCP server
-      try {
-        execSync('codex mcp add claude-flow -- npx claude-flow mcp start', {
-          stdio: 'pipe',
-          timeout: 10000,
-        });
-        return { registered: true };
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        return {
-          registered: false,
-          warning: `Failed to register MCP server: ${errorMessage}. Run manually: codex mcp add claude-flow -- npx claude-flow mcp start`,
-        };
+      // Try the on-PATH codex first (fast path for users with a current codex);
+      // fall back to the npx-pinned current codex (version-safe). npx gets a
+      // longer timeout to cover a cold download.
+      for (const cmd of [`codex ${ADD}`, MANUAL]) {
+        try {
+          execSync(cmd, { stdio: 'pipe', timeout: cmd.startsWith('npx') ? 120000 : 15000 });
+          return { registered: true };
+        } catch {
+          // Try the next strategy.
+        }
       }
+      return {
+        registered: false,
+        warning: `Failed to register MCP server with Codex. Run manually: ${MANUAL}`,
+      };
     } catch {
       return {
         registered: false,
-        warning: 'Could not register MCP server. Run manually: codex mcp add claude-flow -- npx claude-flow mcp start',
+        warning: 'Could not register MCP server with Codex. Run manually: npx -y @openai/codex@latest mcp add ruflo -- npx -y @sparkleideas/ruflo@latest mcp start',
       };
     }
   }
