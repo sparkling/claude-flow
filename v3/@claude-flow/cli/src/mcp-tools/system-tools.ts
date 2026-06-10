@@ -299,7 +299,7 @@ export const systemTools: MCPTool[] = [
       const projectCwd = findProjectRoot();
 
       // Memory DB check — verify any supported store file exists.
-      // #1843 (hand-port): the live store is `.swarm/memory.db` (sql.js) and
+      // #1843 (hand-port): the live store is `.swarm/memory.db` (SQLite) and
       // `.claude-flow/memory.rvf` / `.swarm/*.rvf` (RVF), never the legacy
       // `.claude-flow/memory/store.json`. Probing only the legacy path made a
       // healthy store report `degraded` (ADR-0210/0287 reporter honesty; ADR-0317).
@@ -308,7 +308,7 @@ export const systemTools: MCPTool[] = [
         const memoryCandidates = [
           join(projectCwd, '.claude-flow', 'memory', 'store.json'),     // legacy
           join(projectCwd, '.claude-flow', 'memory.rvf'),               // fork RVF default (memory-router)
-          join(projectCwd, '.swarm', 'memory.db'),                      // fork sql.js default (_getMemoryRoot)
+          join(projectCwd, '.swarm', 'memory.db'),                      // fork SQLite default (_getMemoryRoot)
           join(projectCwd, '.swarm', 'memory.rvf'),                     // swarm RVF
           join(projectCwd, '.swarm', 'agentdb-memory.rvf'),             // agentdb RVF silo
           join(projectCwd, '.claude-flow', 'memory', 'agentdb.sqlite'),
