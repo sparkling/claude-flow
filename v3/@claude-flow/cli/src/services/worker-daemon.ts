@@ -3,11 +3,14 @@
  * Node.js-based background worker system that auto-runs like shell daemons
  *
  * Workers:
- * - map: Codebase mapping (5 min interval)
- * - audit: Security analysis (10 min interval)
- * - optimize: Performance optimization (15 min interval)
- * - consolidate: Memory consolidation (30 min interval)
- * - testgaps: Test coverage analysis (20 min interval)
+ * - map: Codebase mapping (15 min interval)
+ * - audit: Security analysis (30 min interval)            // fork override, HW-003
+ * - optimize: Performance optimization (60 min interval)  // fork override, HW-003
+ * - consolidate: Memory consolidation (10 min interval)   // fork override, WM-108
+ * - testgaps: Test coverage analysis (60 min interval)    // fork override, HW-003
+ *
+ * Cadence diverges from upstream (audit 10/optimize 15/consolidate 30/testgaps 20)
+ * deliberately — see HW-003/WM-108 + ADR-0307 T3 (economics: fewer LLM fires).
  */
 
 import { EventEmitter } from 'events';
@@ -147,6 +150,11 @@ interface WorkerConfigInternal extends WorkerConfig {
 }
 
 // Default worker configurations with improved intervals (P0 fix: map 5min -> 15min)
+// ADR-0307 T3 / HW-003 + WM-108: cadence intentionally diverges from upstream
+// (upstream audit=10m, optimize=15m, consolidate=30m, testgaps=20m). The three
+// LLM-spawning workers (audit→haiku, optimize/testgaps→sonnet) run LESS often to
+// cut token spend; consolidate (in-process, $0 LLM) runs MORE often. settings.json
+// `claudeFlow.daemon.schedules` overrides these at runtime.
 const DEFAULT_WORKERS: WorkerConfigInternal[] = [
   { type: 'map', intervalMs: 15 * 60 * 1000, offsetMs: 0, priority: 'normal', description: 'Codebase mapping', enabled: true },
   { type: 'audit', intervalMs: 30 * 60 * 1000, offsetMs: 2 * 60 * 1000, priority: 'critical', description: 'Security analysis', enabled: true },

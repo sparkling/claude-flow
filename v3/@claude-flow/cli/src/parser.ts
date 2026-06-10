@@ -583,6 +583,16 @@ export class CommandParser {
     if (!this.options.allowUnknownFlags) {
       const knownFlags = new Set(allOptions.map(opt => this.normalizeKey(opt.name)));
       knownFlags.add('_'); // Positional args
+      // ADR-0316: the negation branch stores `--no-foo` as the STRIPPED canonical
+      // key `foo` (flags.foo=false), but the declared option name is `no-foo`
+      // (→ normalizeKey → `noFoo`). Register the stripped form too so advertised
+      // `--no-*` flags survive validation (fixes init --no-global #1744/#2098A and
+      // 5 sibling flags — the #2098A consumer fix at init.ts was unreachable without this).
+      for (const opt of allOptions) {
+        if (opt.name.startsWith('no-')) {
+          knownFlags.add(this.normalizeKey(opt.name.slice(3)));
+        }
+      }
 
       for (const key of Object.keys(flags)) {
         if (!knownFlags.has(key) && key !== '_') {

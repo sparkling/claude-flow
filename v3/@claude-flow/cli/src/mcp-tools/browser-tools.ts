@@ -6,8 +6,53 @@
  */
 
 import { readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import type { MCPTool, MCPToolResult } from './types.js';
 import { validateIdentifier, validateText } from './validate-input.js';
+
+// ── ADR-0314: orphan-Chrome teardown (CLI/MCP variant) ────────────────────
+// agent-browser runs a PERSISTENT per-session daemon that owns Chrome. When the
+// MCP server that spawned it exits/handles a signal without `agent-browser
+// close`, the daemon reparents to PID 1 and busy-spins (perf-gate contention).
+// Close every session this process started on normal exit + SIGINT/SIGTERM,
+// mirroring execBrowserCommand's own resolution (agent-browser, then npx). A
+// SIGKILL skips handlers — the acceptance reaper is the backstop. Live behavior
+// is unchanged: the daemon still persists between commands; close only at exit.
+const _activeSessions = new Set<string>();
+let _cleanupHandlersInstalled = false;
+
+function _closeSessionSync(session: string): void {
+  const fullArgs = ['--session', session, 'close'];
+  try {
+    execFileSync('agent-browser', fullArgs, { timeout: 5000, stdio: 'ignore' });
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === 'ENOENT') {
+      try {
+        execFileSync('npx', ['--yes', 'agent-browser', ...fullArgs], { timeout: 15000, stdio: 'ignore' });
+      } catch { /* best-effort */ }
+    }
+    // any other error: daemon already gone — never throw from a handler.
+  }
+}
+
+function _closeAllSessionsSync(): void {
+  for (const session of _activeSessions) _closeSessionSync(session);
+  _activeSessions.clear();
+}
+
+function _registerSessionForCleanup(session: string): void {
+  _activeSessions.add(session);
+  if (_cleanupHandlersInstalled) return;
+  _cleanupHandlersInstalled = true;
+  process.once('exit', () => { _closeAllSessionsSync(); });
+  for (const sig of ['SIGINT', 'SIGTERM'] as NodeJS.Signals[]) {
+    process.once(sig, () => {
+      _closeAllSessionsSync();
+      process.kill(process.pid, sig);
+    });
+  }
+}
 
 // Session registry for multi-session support
 const browserSessions = new Map<string, {
@@ -21,6 +66,8 @@ const browserSessions = new Map<string, {
  * Tries global agent-browser first, falls back to npx if ENOENT.
  */
 async function execBrowserCommand(args: string[], session = 'default'): Promise<MCPToolResult> {
+  // ADR-0314: ensure this session is torn down on process exit/signal.
+  _registerSessionForCleanup(session);
   const { execFileSync } = await import('child_process');
   const fullArgs = ['--session', session, '--json', ...args];
 
@@ -231,6 +278,7 @@ export const browserTools: MCPTool[] = [
       const { session } = input as { session?: string };
       const sessionId = session || 'default';
       browserSessions.delete(sessionId);
+      _activeSessions.delete(sessionId); // ADR-0314: explicit close → stop tracking
       return execBrowserCommand(['close'], sessionId);
     },
   },

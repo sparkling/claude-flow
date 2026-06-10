@@ -20,6 +20,49 @@ import type {
   NetworkRouteInput,
 } from '../domain/types.js';
 
+// ── ADR-0314: orphan-Chrome teardown ──────────────────────────────────────
+// agent-browser runs a PERSISTENT per-session daemon that owns Chrome. If this
+// process exits/handles a signal without `agent-browser close`, that daemon is
+// reparented to PID 1 and busy-spins forever (perf-gate contention). Track every
+// session we touch and close it on normal exit, error, SIGINT, and SIGTERM, so a
+// handled exit never orphans. (A SIGKILL skips handlers — the acceptance reaper
+// is the backstop for that one escape.) Live behavior is unchanged: the daemon
+// still persists between commands; we close ONLY at process teardown.
+const _activeSessions = new Set<string>();
+let _cleanupHandlersInstalled = false;
+
+function _closeAllSessionsSync(): void {
+  for (const session of _activeSessions) {
+    try {
+      execFileSync('agent-browser', ['--session', session, 'close'], {
+        timeout: 5000,
+        stdio: 'ignore',
+      });
+    } catch {
+      // Best-effort: a dead/half-open daemon may already be gone. Never throw
+      // from an exit/signal handler.
+    }
+  }
+  _activeSessions.clear();
+}
+
+function _registerSessionForCleanup(session: string): void {
+  _activeSessions.add(session);
+  if (_cleanupHandlersInstalled) return;
+  _cleanupHandlersInstalled = true;
+  // 'exit' handlers must be synchronous — execFileSync fits.
+  process.once('exit', () => { _closeAllSessionsSync(); });
+  // Signals: close synchronously, then re-raise so the OS-default termination
+  // (128+signo) still applies. `process.once` already removed our handler, so
+  // the re-raised signal hits the default disposition (no loop).
+  for (const sig of ['SIGINT', 'SIGTERM'] as NodeJS.Signals[]) {
+    process.once(sig, () => {
+      _closeAllSessionsSync();
+      process.kill(process.pid, sig);
+    });
+  }
+}
+
 export interface AgentBrowserAdapterOptions {
   session?: string;
   timeout?: number;
@@ -54,6 +97,8 @@ export class AgentBrowserAdapter {
   // ===========================================================================
 
   private async exec<T = unknown>(args: string[], jsonOutput = true): Promise<ActionResult<T>> {
+    // ADR-0314: ensure this session is torn down on process exit/signal.
+    _registerSessionForCleanup(this.session);
     const startTime = Date.now();
     const fullArgs = [
       '--session', this.session,
@@ -125,6 +170,8 @@ export class AgentBrowserAdapter {
   }
 
   async close(): Promise<ActionResult> {
+    // ADR-0314: explicit close — stop tracking so the exit handler is a no-op.
+    _activeSessions.delete(this.session);
     return this.exec(['close']);
   }
 
