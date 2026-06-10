@@ -21,18 +21,16 @@ import { spawnSync } from 'node:child_process';
 const PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 
 // USD per 1M tokens — kept in sync with REFERENCE.md "Model pricing" table.
-// ADR-0298 X1 (freshness note — DA F3): the `haiku` row carries Haiku-3-era
-// rates (0.25/1.25). modelTier() maps EVERY model containing "haiku" (incl.
-// claude-haiku-4-5) to this tier, so a Haiku-4.5 call is currently priced at
-// the older Haiku-3 rate. The sibling `bench.mjs` already uses the current
-// Haiku-4.5 rate (1.00/5.00, ANTHROPIC_PRICING['claude-haiku-4-5']). The two
-// tables disagree; this is a recorded freshness gap, NOT changed here — bump
-// these numbers (and REFERENCE.md row "Haiku") when refreshing the pricing
-// table, keeping cache_write/cache_read in step.
+// ADR-0307 T3: tiers carry CURRENT rates (verified against the Anthropic pricing
+// page 2026-06-10). modelTier() maps every model containing "haiku"/"opus" to its
+// tier; on the live roster that is claude-haiku-4-5 (1.00/5.00) and the current
+// Opus 4.x family — 4.5/4.6/4.7/4.8 (5.00/25.00). (Legacy Opus 4.1 was 15/75 and
+// Haiku-3 was 0.25/1.25; both retired/off-default.) cache_write = 1.25x input,
+// cache_read = 0.1x input. Matches bench.mjs + REFERENCE.md.
 const PRICING = {
-  haiku:  { input: 0.25,  output: 1.25,  cache_write: 0.30,  cache_read: 0.03 },
+  haiku:  { input: 1.00,  output: 5.00,  cache_write: 1.25,  cache_read: 0.10 },
   sonnet: { input: 3.00,  output: 15.00, cache_write: 3.75,  cache_read: 0.30 },
-  opus:   { input: 15.00, output: 75.00, cache_write: 18.75, cache_read: 1.50 },
+  opus:   { input: 5.00,  output: 25.00, cache_write: 6.25,  cache_read: 0.50 },
 };
 
 function modelTier(model) {

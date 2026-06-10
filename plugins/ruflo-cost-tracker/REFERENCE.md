@@ -6,13 +6,11 @@ Companion reference for `cost-analyst`. The agent prompt deliberately stays lean
 
 | Model | Input | Output | Cache write | Cache read |
 |---|---|---|---|---|
-| Haiku | $0.25 | $1.25 | $0.30 | $0.03 |
+| Haiku | $1.00 | $5.00 | $1.25 | $0.10 |
 | Sonnet | $3.00 | $15.00 | $3.75 | $0.30 |
-| Opus | $15.00 | $75.00 | $18.75 | $1.50 |
+| Opus | $5.00 | $25.00 | $6.25 | $0.50 |
 
-Prices are public-list and may need a refresh — verify against the Anthropic pricing page when running quarterly cost reports.
-
-> **Freshness note (ADR-0298 X1):** the **Haiku** row carries Haiku-3-era rates ($0.25 / $1.25). `track.mjs`'s `modelTier()` maps every model containing "haiku" — including `claude-haiku-4-5` — to this row, so a Haiku-4.5 call is currently costed at the older Haiku-3 rate. The sibling `bench.mjs` already lists Haiku-4.5 at $1.00 / $5.00. Refresh this row (and `track.mjs`'s `PRICING.haiku`) together when updating.
+Prices are public-list (verified against the Anthropic pricing page, 2026-06-10) — re-verify when running quarterly cost reports. The **Haiku** row is Haiku-4.5; the **Opus** row is the current Opus 4.x family (4.5/4.6/4.7/4.8). `track.mjs`'s `modelTier()` maps every model containing "haiku"/"opus" to its row. (Legacy Opus 4.1 was $15/$75; Haiku-3 was $0.25/$1.25 — both off-default.)
 
 ## Cost attribution formula
 
@@ -32,9 +30,11 @@ Cache-read tokens are 90% cheaper than fresh input — that's where prompt cachi
 | Info | 50% consumed | Log notification, no UX disruption |
 | Warning | 75% consumed | Display warning, suggest optimizations |
 | Critical | 90% consumed | Urgent alert, recommend model downgrades |
-| Hard stop | 100% consumed | Halt non-essential agent spawns |
+| HARD_STOP | 100% consumed | Alert + opt-in fail-closed gate (`budget.mjs check` exits 1 — wrap spawns in `check && spawn`); does NOT auto-halt the daemon. Hard cut-off = ADR-097 federation circuit breaker. |
 
 Budgets are configured per project + per session via the cost-tracker plugin commands.
+
+> **Enforcement model (ADR-0307 T2):** this plugin does **attribution + alerting** only. `HARD_STOP` raises an alert and `budget.mjs check` exits 1 so you can gate a spawn opt-in (`check && spawn`), but no daemon or dispatch path consumes it automatically. The hard cut-off is upstream ADR-097's federation budget circuit breaker, which caps `maxTokens`/`maxUsd`/`maxHops` at the `federation_send` boundary.
 
 ## Optimization strategies
 

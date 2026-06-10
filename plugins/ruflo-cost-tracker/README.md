@@ -4,7 +4,7 @@ Token usage tracking, model cost attribution per agent, budget alerts, and optim
 
 ## Overview
 
-Tracks token usage per agent, task, and model, then computes USD cost attribution using current model pricing. Monitors configurable budgets with tiered alerts (info at 50%, warning at 75%, critical at 90%, hard stop at 100%). Analyzes usage patterns and recommends optimizations such as model downgrades, prompt caching, and batch operations.
+Tracks token usage per agent, task, and model, then computes USD cost attribution using current model pricing. Monitors configurable budgets with tiered **alerts** (info at 50%, warning at 75%, critical at 90%, HARD_STOP at 100%). The HARD_STOP tier is an **alert plus an opt-in fail-closed gate** (`budget.mjs check` exits non-zero at 100%, so you can wrap a spawn in `budget.mjs check && spawn …`); it does **not** automatically halt the worker daemon or any agent dispatch. The hard cut-off is the federation budget circuit breaker (ADR-097), not this plugin. Analyzes usage patterns and recommends optimizations such as model downgrades, prompt caching, and batch operations.
 
 ## Installation
 
@@ -39,9 +39,9 @@ cost history                             # Show cost tracking over time
 
 | Model | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
-| Haiku | $0.25 | $1.25 | $0.30 | $0.03 |
+| Haiku | $1.00 | $5.00 | $1.25 | $0.10 |
 | Sonnet | $3.00 | $15.00 | $3.75 | $0.30 |
-| Opus | $15.00 | $75.00 | $18.75 | $1.50 |
+| Opus | $5.00 | $25.00 | $6.25 | $0.50 |
 
 ## Budget Alert Thresholds
 
@@ -50,7 +50,7 @@ cost history                             # Show cost tracking over time
 | Info | 50% consumed | Log notification |
 | Warning | 75% consumed | Display warning, suggest optimizations |
 | Critical | 90% consumed | Urgent alert, recommend model downgrades |
-| Hard Stop | 100% consumed | Halt non-essential agent spawns |
+| HARD_STOP | 100% consumed | Alert + opt-in fail-closed gate (`budget.mjs check` exits 1); does not auto-halt dispatch. Hard cut-off = ADR-097 federation breaker. |
 
 ## Optimization Strategies
 

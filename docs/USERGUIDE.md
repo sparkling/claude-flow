@@ -291,7 +291,7 @@ The system stores successful patterns in vector memory, builds a knowledge graph
 <details>
 <summary>⚡ <strong>Optimization</strong> — How to reduce cost and latency</summary>
 
-Skip expensive LLM calls for simple tasks using WebAssembly transforms, and compress tokens to reduce API costs by 30-50%.
+Skip expensive LLM calls for simple tasks using WebAssembly transforms, and compress tokens to reduce token usage by 30-50%.
 
 | Layer | Components | What It Does |
 |-------|------------|--------------|
@@ -316,9 +316,9 @@ Background daemons handle security audits, performance optimization, and session
 </details>
 
 <details>
-<summary>🎯 <strong>Task Routing</strong> — Extend your Claude Code subscription by 250%</summary>
+<summary>🎯 <strong>Task Routing</strong> — Extend your Claude Code subscription by up to ~250% (projected)</summary>
 
-Smart routing skips expensive LLM calls when possible. Simple edits use WASM (free), medium tasks use cheaper models. This can extend your Claude Code usage by 250% or save significantly on direct API costs.
+Smart routing skips expensive LLM calls when possible. Simple edits use WASM (free), medium tasks use cheaper models. Under a favourable task mix this can extend your Claude Code usage by up to ~250% (a usage-multiplier framing of the same cost savings, not an additional figure) — or save significantly on direct API costs.
 
 | Complexity | Handler | Speed |
 |------------|---------|-------|
@@ -878,7 +878,7 @@ Not every task needs the most powerful (and expensive) model. Ruflo analyzes eac
 
 | Benefit | Impact |
 |---------|--------|
-| 💵 **API Cost Reduction** | 75% lower costs by using right-sized models |
+| 💵 **API Cost Reduction** | Up to ~75% lower API spend by routing to right-sized models (projected; depends on task mix — distinct from the 30-50% *token* reduction below) |
 | ⏱️ **Claude Max Extension** | More tasks within quota via smart model selection |
 | 🚀 **Faster Simple Tasks** | <1ms for transforms vs 2-5s with LLM |
 | 🎯 **Zero Wasted Tokens** | Simple edits use 0 tokens (WASM handles them) |
@@ -891,7 +891,7 @@ Not every task needs the most powerful (and expensive) model. Ruflo analyzes eac
 | **2** | Haiku/Sonnet | 500ms-2s | $0.0002-$0.003 | Bug fixes, refactoring, feature implementation |
 | **3** | Opus | 2-5s | $0.015 | Architecture, security design, distributed systems |
 
-**Routing:** Q-learning with epsilon-greedy exploration, sub-millisecond decision latency
+**Routing:** cost-adjusted Thompson sampling (Beta-Bernoulli bandit) for model-tier selection, sub-millisecond decision latency. (Agent/task assignment is handled separately by the Q-Learning Router — see *Intelligent Routing*.)
 
 </details>
 
@@ -2143,7 +2143,7 @@ npx ruflo@latest worker status
 | `round-robin` | Rotate through providers sequentially | Even distribution |
 | `least-loaded` | Use provider with lowest current load | High throughput |
 | `latency-based` | Use fastest responding provider | Low latency |
-| `cost-based` | Use cheapest provider that meets requirements | Cost optimization (85%+ savings) |
+| `cost-based` | Use cheapest provider that meets requirements | Cross-provider cost optimization (up to ~85%, projected — e.g. routing eligible work to free local/open-weight providers) |
 
 </details>
 
@@ -4865,7 +4865,7 @@ claude mcp add agentic-flow -- npx agentic-flow mcp start
 | **ReasoningBank** | Learning memory with HNSW | HNSW-indexed search |
 | **ONNX Embeddings** | Local vector generation | faster with ONNX runtime than Transformers.js |
 | **Embedding Geometry** | Geometric intelligence layer | <3ms latency |
-| **Multi-Model Router** | Intelligent model selection | 30-50% cost savings |
+| **Multi-Model Router** (agentic-flow `ModelRouter`, opt-in) | Intelligent model selection across providers | ~30-50% token / up to ~75% API-cost (projected) |
 | **QUIC Transport** **[deferred — ADR-0217]** | High-performance transport | Ultra-low latency (multi-writer build quarantined; CLI handlers throw deferred-status error) |
 
 <details>
@@ -5032,7 +5032,7 @@ if (result.anomalyScore > 1.5) {
 <details>
 <summary>🔀 <strong>Multi-Model Router</strong> — Intelligent Model Selection</summary>
 
-Route tasks to optimal models based on complexity:
+Route tasks to optimal models based on complexity. This is agentic-flow's real `ModelRouter` (with provider failover); you invoke it directly — Ruflo's `agent_execute` hot path does not auto-route through it yet:
 
 ```typescript
 import { ModelRouter } from 'agentic-flow/router';
