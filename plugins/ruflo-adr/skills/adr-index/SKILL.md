@@ -1,18 +1,30 @@
 ---
 name: adr-index
-description: Build or rebuild the ADR index + dependency graph by running scripts/import.mjs (handles v3-style and plugin-style ADR formats; one Bash call vs hundreds of MCP round-trips)
+description: Build or rebuild the ADR index + dependency graph in AgentDB by running the in-process `agentdb index` command (one cold-start, all surfaces in one pass — no per-record npx round-trips). Handles v3-style and plugin-style ADR formats.
 argument-hint: ""
-allowed-tools: Bash mcp__ruflo__memory_list mcp__ruflo__memory_search
+allowed-tools: Bash mcp__ruflo__memory_list mcp__ruflo__memory_search mcp__ruflo__agentdb_hierarchical-query
 ---
 
 # ADR Index
 
-Persists every ADR under `*/docs/adr/` or `*/docs/adrs/` to the `adr-patterns` namespace and every relationship (supersedes / depends-on / implements, plus their derived inverses superseded-by / depended-on-by / implemented-by) to the `adr-edges` namespace — the two namespaces `adr-verify` reads back. (The `agentdb index` CLI, ADR-0273, is the equivalent in-process builder; it writes the same `adr-patterns` + `adr-edges` surfaces and avoids the per-ADR MCP round-trips. `adr-edges` is the live edge namespace, not retired.) Handles both ADR formats found in the Ruflo monorepo:
+Builds the canonical ADR index over all three skill surfaces in ONE in-process
+pass via the `agentdb index` command (ADR-0273):
 
-- **v3-style**: `# ADR-097: Title` heading + `**Status**: Proposed` line
-- **plugin-style**: YAML frontmatter (`id: ADR-NNNN`, `status: Proposed`)
+- **hierarchical `adr/<id>`** — the records `agentdb_hierarchical-query adr/*` reads (SQLite, ADR-0176 key map)
+- **`causal-edges`** — typed dependency edges (`supersedes` / `depends-on` / `implements`) plus their derived inverses (`superseded-by` / `depended-on-by` / `implemented-by`), written via `recordCausalEdge` (ADR-0273 D8)
+- **`adr-patterns`** — a semantic excerpt per ADR (RVF + embedding), the namespace `memory_search` queries
 
-Implementation is in `scripts/import.mjs` (one Bash call) rather than dozens of per-ADR MCP tool calls — same effective behavior, materially faster, dual-format-aware, and false-positive-resistant for issue numbers.
+This replaces the legacy `scripts/import.mjs`, which persisted every record and
+edge with a separate `npx @sparkleideas/cli@latest memory store` subprocess —
+one process per item (~840 on a 300-ADR corpus, ~0.5 s each, ~0.4 s of it pure
+`@latest` registry-resolution tax; ADR-0088 / `reference-cli-cmd-helper`). The
+in-process builder cold-starts the registry + embedder ONCE (~12-18 s) then
+writes every surface in memory. It runs alongside a live MCP server with no
+stop-server step (ADR-0274's read/write handle split). Handles both ADR formats
+found in the Ruflo monorepo:
+
+- **v3-style**: `# ADR-097: Title` heading + frontmatter
+- **plugin-style**: YAML frontmatter (`status:`, `date:`, `tags:`, relation slots) — the canonical MADR shape (ADR-0271)
 
 ## When to use
 
@@ -22,22 +34,42 @@ Implementation is in `scripts/import.mjs` (one Bash call) rather than dozens of 
 
 ## Steps
 
-1. **Run the importer**:
+1. **Run the builder** (one Bash call — drives the in-process command, not a
+   per-record subprocess loop):
 
    ```bash
-   node plugins/ruflo-adr/scripts/import.mjs
+   ruflo agentdb index --dir docs/adr
    ```
 
-   Optional env:
-   - `IMPORT_FORMAT=json` — emit JSON instead of markdown
-   - `IMPORT_DRY_RUN=1` — parse + summarize, skip persistence
-   - `ADR_ROOT=/path` — scan a different root (default: cwd)
+   Flags:
+   - `--dir <path>` — ADR directory to scan (default: `docs/adr`). Scope this to
+     the real corpus; do NOT scan the repo root (the `.claude/worktrees`
+     over-reach the legacy cwd-walk suffered).
+   - `--dry-run` — parse + report planned record/edge counts, write nothing.
+   - `--purge` — clear all four index surfaces (hierarchical `adr/*`,
+     `adr-patterns`, the `causal-edges` RVF/KV namespace, AND the SQLite
+     `causal_edges` + `adr_node_ids` tables) before rebuilding, for a
+     deterministic, idempotent re-index (ADR-0285 P1/P2). Use this for a
+     rebuild; omit it only when appending to a known-empty index.
 
-2. **Inspect the summary** — total ADRs, stored count, by-status breakdown, edge counts, dangling refs, status mismatches.
+   The command prints `Parsed N ADR record(s)…` then, on completion,
+   `agentdb index complete: <R>/<N> hierarchical records, <P> adr-patterns,
+   <E> edges + <I> inverses`. A non-zero exit means one or more surface writes
+   failed (the failures are listed) — investigate before trusting the index.
 
-3. **Verify graph integrity** (optional but recommended) via the sibling `adr-verify` skill, which runs `scripts/verify.mjs` and exits 1 on cycles.
+2. **Inspect the summary** — record count, adr-patterns count, forward edge
+   count + derived-inverse count, and any write failures or
+   silently-dropped-edge reconciliation warnings (ADR-0285).
 
-4. **Search semantically** via `mcp__ruflo__memory_search` against the populated namespace:
+3. **Verify the records are queryable** (optional but recommended):
+
+   ```
+   agentdb_hierarchical-query --pathPattern "adr/*"
+   ```
+
+   returns one record per indexed ADR.
+
+4. **Search semantically** via `memory_search` against the populated namespace:
 
    ```
    memory_search --query "federation budget" --namespace adr-patterns
@@ -45,32 +77,44 @@ Implementation is in `scripts/import.mjs` (one Bash call) rather than dozens of 
 
 ## Storage shape
 
-`adr-patterns` namespace, key `<ADR-id>::<basename>`, value (text):
-
-```
-<title> — <first paragraph of Context>
-
-file: <relative path>
-status: <proposed|accepted|rejected|deprecated|superseded>
-completed: <true|false>   # per ADR-0262 — informational only; no graph edges, no filtering, no sort
-date: <ISO date>
-tags: <comma-separated>
-```
-
-The `completed` boolean (ADR-0262) is stored alongside `status` and `tags` for reference; absent → treated as `false`. No edges or filters derive from it.
-
-`causal-edges` namespace (written via `recordCausalEdge`; ADR-0273 D8), key `<relation>:<FROM>-><TO>:<timestamp-rand>`, value:
+`adr/<id>` hierarchical record (SQLite, `tier: semantic`), value (JSON):
 
 ```json
-{ "from": "ADR-097", "to": "ADR-086", "relation": "supersedes", "capturedAt": "<ISO>" }
+{ "id": "ADR-0097", "title": "…", "status": "accepted", "date": "2026-05-30",
+  "tags": ["…"], "file": "ADR-0097-….md", "context": "<first paragraph of Context>" }
 ```
 
-## False-positive guard
+`adr-patterns` namespace (RVF + embedding), key `<ADR-id>`, value (text):
+`<title> — <first paragraph of Context and Problem Statement>`.
 
-`#1697` / `commit abc123` / `PR 1234` references inside ADR bodies are stripped before regex extraction so they don't get misread as `ADR-1697` etc. See `extractAdrRefs()` in `scripts/import.mjs`.
+`causal-edges` namespace (written via `recordCausalEdge`; ADR-0273 D8), key
+`<from>→<to>` (arrow-joined ADR ids), value:
+
+```json
+{ "sourceId": "ADR-0097", "targetId": "ADR-0086", "relation": "supersedes", "weight": 1 }
+```
+
+Three forward relations are parsed from frontmatter — `supersedes`,
+`depends-on`, `implements` — and exactly three inverses are derived caller-side
+(`superseded-by`, `depended-on-by`, `implemented-by`; ADR-0273 D10). Never author
+an inverse by hand.
+
+## Parity with the legacy importer
+
+The builder writes the **same records** and the **same forward edges** as the
+legacy `import.mjs` for the three canonical relations, and *additionally* writes
+the three derived inverses (which `import.mjs` never wrote). No record or forward
+edge is lost in the migration — the inverses are an enhancement (traversable
+typed edges in the causal graph, not opaque `adr-edges` blobs). `import.mjs` is
+retained in `scripts/` as a documented fallback only; the canonical path is this
+command.
 
 ## Cross-references
 
-- `adr-create` — produces the ADR files this skill consumes
+- `adr-create` — produces the ADR files this skill consumes (and emits the same canonical frontmatter the builder parses)
 - `adr-review` — runs over `adr-patterns` for compliance checks
-- `adr-verify` (sibling skill) — runs `scripts/verify.mjs` for graph-integrity gating
+- `adr-verify` (sibling skill) — graph-integrity gating. NOTE: `adr-verify`'s
+  `scripts/verify.mjs` currently reads the legacy `adr-edges` namespace; this
+  builder writes edges to `causal-edges`. Run `adr-verify` against an index
+  built by the legacy `import.mjs`, or migrate `verify.mjs` to read
+  `causal-edges` (tracked under ADR-0305 T2).
