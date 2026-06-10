@@ -209,6 +209,18 @@ async function handleMessage(message) {
         };
       }
 
+      // ADR-0287 F2: the initialize reply advertises capabilities.resources, so
+      // the advertised resources/list method must respond (an empty list is
+      // correct — there are no resources to enumerate). Without this case it
+      // fell through to the -32601 default, contradicting the advert. Mirrors
+      // upstream's class-server handler (shared/src/mcp/server.ts handleResourcesList).
+      case 'resources/list':
+        return {
+          jsonrpc: '2.0',
+          id: message.id,
+          result: { resources: [] },
+        };
+
       case 'tools/call': {
         const toolName = params.name;
         const toolParams = params.arguments || {};

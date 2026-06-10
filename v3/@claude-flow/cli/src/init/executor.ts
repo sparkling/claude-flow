@@ -1207,9 +1207,13 @@ async function writeHelpers(
   const helpers: Record<string, string> = {
     'pre-commit': generatePreCommitHook(),
     'post-commit': generatePostCommitHook(),
-    'session.js': generateSessionManager(),
-    'router.js': generateAgentRouter(),
-    'memory.js': generateMemoryHelper(),
+    // ADR-0312: emit as .cjs so Node treats them as CommonJS regardless of the
+    // project's package.json "type" (router/session/memory are module.exports
+    // CJS; under "type":"module" a .js name is parsed as ESM and the load
+    // throws, nulling the helper → hook prints "Router not available").
+    'session.cjs': generateSessionManager(),
+    'router.cjs': generateAgentRouter(),
+    'memory.cjs': generateMemoryHelper(),
     'hook-handler.mjs': generateHookHandler(),
     'intelligence.cjs': generateIntelligenceStub(),
     'auto-memory-hook.mjs': generateAutoMemoryHook(),

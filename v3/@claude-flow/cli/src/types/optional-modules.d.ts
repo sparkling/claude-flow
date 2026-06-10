@@ -409,8 +409,12 @@ declare module '@ruvector/ruvllm-wasm' {
   /** Configuration for MicroLoraWasm. */
   export class MicroLoraConfigWasm {
     constructor();
-    inputDim: number;
-    outputDim: number;
+    // ADR-0308: the real @ruvector/ruvllm-wasm config exposes inFeatures/
+    // outFeatures (not inputDim/outputDim). The old stub names were inert
+    // expandos — assignments compiled but the WASM ignored them, so every
+    // adapter silently fell back to 768×768. Match the real package's d.ts.
+    inFeatures: number;
+    outFeatures: number;
     rank: number;
     alpha: number;
   }

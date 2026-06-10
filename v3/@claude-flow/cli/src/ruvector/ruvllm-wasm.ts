@@ -319,8 +319,8 @@ export async function createMicroLora(config: MicroLoraConfig): Promise<{
   const mod = await import('@ruvector/ruvllm-wasm');
 
   const loraConfig = new mod.MicroLoraConfigWasm();
-  loraConfig.inputDim = config.inputDim;
-  loraConfig.outputDim = config.outputDim;
+  loraConfig.inFeatures = config.inputDim;
+  loraConfig.outFeatures = config.outputDim;
   loraConfig.rank = config.rank ?? 2;
   loraConfig.alpha = config.alpha ?? 1.0;
 

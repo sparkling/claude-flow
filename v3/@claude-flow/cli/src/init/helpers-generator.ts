@@ -400,6 +400,14 @@ export function generateHookHandler(): string {
     'const helpersDir = __dirname;',
     'const require = createRequire(import.meta.url);',
     '',
+    '// ADR-0312: prefer .cjs (explicit CommonJS), fall back to legacy .js so a',
+    '// new handler over an old (pre-.cjs) tree still resolves the helper.',
+    'function resolveHelper(base) {',
+    "  const cjs = join(helpersDir, base + '.cjs');",
+    '  if (existsSync(cjs)) return cjs;',
+    "  return join(helpersDir, base + '.js');",
+    '}',
+    '',
     'function safeRequire(modulePath) {',
     '  try {',
     '    if (existsSync(modulePath)) {',
@@ -421,9 +429,9 @@ export function generateHookHandler(): string {
     '  return null;',
     '}',
     '',
-    "const router = safeRequire(join(helpersDir, 'router.js'));",
-    "const session = safeRequire(join(helpersDir, 'session.js'));",
-    "const memory = safeRequire(join(helpersDir, 'memory.js'));",
+    "const router = safeRequire(resolveHelper('router'));",
+    "const session = safeRequire(resolveHelper('session'));",
+    "const memory = safeRequire(resolveHelper('memory'));",
     "const intelligence = safeRequire(join(helpersDir, 'intelligence.cjs'));",
     '',
     'const [,, command, ...args] = process.argv;',
@@ -1510,9 +1518,11 @@ export function generateHelpers(options: InitOptions): Record<string, string> {
     helpers['post-commit'] = generatePostCommitHook();
 
     // Cross-platform Node.js scripts
-    helpers['session.js'] = generateCrossPlatformSessionManager();
-    helpers['router.js'] = generateAgentRouter();
-    helpers['memory.js'] = generateMemoryHelper();
+    // ADR-0312: .cjs so the explicit extension states the module system (CJS),
+    // immune to package.json "type" at any directory depth. (generator path)
+    helpers['session.cjs'] = generateCrossPlatformSessionManager();
+    helpers['router.cjs'] = generateAgentRouter();
+    helpers['memory.cjs'] = generateMemoryHelper();
 
     // Windows-specific scripts
     helpers['daemon-manager.ps1'] = generateWindowsDaemonManager();

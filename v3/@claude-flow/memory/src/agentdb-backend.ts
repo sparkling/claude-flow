@@ -247,6 +247,28 @@ const DEFAULT_CONFIG = FALLBACK_CONFIG;
  * - Semantic search with filtering
  * - Compatible with RvfBackend for combined structured+vector queries
  */
+
+/**
+ * ADR-0287 R2 + feedback-best-effort-must-rethrow-fatals: the data-integrity /
+ * required-dependency error classes that MUST surface from storeInAgentDB's
+ * write paths rather than being swallowed (a swallowed one strands a
+ * row-without-vector — invisible data loss). Mirrors the canonical set in
+ * memory-router._isFatalInitError (ADR-0112 Phase 2). A generic `Error` (name
+ * still 'Error' — e.g. HNSW "Index not built", "no compatible database
+ * interface", transient I/O) is NOT fatal and stays swallowed to preserve the
+ * off-hot-path "entry is already in-memory" semantics this method documents.
+ */
+function _isFatalStorageError(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  const name = e.name;
+  return name === 'RvfCorruptError'
+      || name === 'RvfNotInitializedError'
+      || name === 'EmbeddingDimensionError'
+      || name === 'DimensionMismatchError'
+      || name === 'AgentDBInitError'
+      || name === 'ControllerInitError';
+}
+
 export class AgentDBBackend extends EventEmitter implements IMemoryBackend {
   // ADR-0170 Phase A.8a: vectorIndex + primaryStorage + connectionString are
   // intentionally NOT Required<>. Leaving them as undefined when not user-set
@@ -832,8 +854,12 @@ export class AgentDBBackend extends EventEmitter implements IMemoryBackend {
         entry.lastAccessedAt,
       ]
     );
-    } catch {
-      // AgentDB storage failed - entry is already in-memory
+    } catch (err) {
+      // ADR-0287 R2: discriminated re-throw. A genuine data-integrity failure
+      // (corrupt store, dimension mismatch, dep-init failure) must surface so
+      // the row-vs-vector split can't strand silently; benign / transient
+      // failures keep the upstream behaviour — entry is already in-memory.
+      if (_isFatalStorageError(err)) throw err;
     }
 
     // Add to vector index if HNSW is available
@@ -845,8 +871,14 @@ export class AgentDBBackend extends EventEmitter implements IMemoryBackend {
           const numericId = this.stringIdToNumeric(entry.id);
           hnsw.addVector(numericId, entry.embedding);
         }
-      } catch {
-        // HNSW not available
+      } catch (err) {
+        // ADR-0287 R2: "HNSW not available / index not built" is a generic
+        // Error (name 'Error') — stays swallowed (the SQLite row is the source
+        // of truth; HNSW is a derived accelerator). But a data-integrity class
+        // (e.g. RvfCorruptError / EmbeddingDimensionError) means the vector
+        // genuinely failed to index AFTER the row was written → re-throw so the
+        // row-without-vector strand surfaces (feedback-best-effort-must-rethrow-fatals).
+        if (_isFatalStorageError(err)) throw err;
       }
     }
   }
