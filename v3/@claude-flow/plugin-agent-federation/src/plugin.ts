@@ -48,6 +48,19 @@ import type {
   TransportCapabilities,
   AgentTransport,
 } from './transport/agentic-flow-loader.js';
+// ADR-0309 T1′ (port of upstream ADR-109): inbound dispatcher routes a
+// verified, PII/trust-gated inbound message to a typed event.
+import { dispatchInbound, canonicalizeEnvelopeForVerify } from './application/inbound-dispatcher.js';
+// ADR-0309 T2′: built-in local-memory responder answers an inbound
+// `memory-query` from this node's memory store (the genuine gap — no
+// upstream artifact). Wired below as a `federation:inbound:memory-query`
+// subscriber.
+import {
+  handleInboundMemoryQuery,
+  type LocalMemoryReader,
+  type MemoryResponseEntry,
+  type InboundMemoryQueryEvent,
+} from './application/memory-responder.js';
 type LoadedTransport = AgentTransport & {
   /** WebSocketFallbackTransport adds listen(); the loader's interface
    * doesn't include it, so we cast at the call site. */
@@ -388,6 +401,108 @@ export class AgentFederationPlugin implements ClaudeFlowPlugin {
             (err instanceof Error ? err.message : String(err)),
         );
       }
+    }
+
+    // ADR-0309 T1′ (port of upstream ADR-109): subscribe to inbound
+    // messages. transport.onMessage is optional on the AgentTransport
+    // interface — older agentic-flow builds gracefully degrade (the
+    // typeof guard makes this a no-op, preserving the fork's prior
+    // send-only behavior). Production injects the real Ed25519 verifier
+    // so sourceNodeId is an authenticated assertion, not a self-claim.
+    if (transport && typeof transport.onMessage === 'function') {
+      const verifyEnvelope = (
+        canonicalBytes: string,
+        signatureHex: string | null,
+        peerPublicKeyHex: string,
+      ): boolean => {
+        if (!signatureHex || !peerPublicKeyHex) return false;
+        return verifyBytes(canonicalBytes, signatureHex, peerPublicKeyHex);
+      };
+      transport.onMessage(async (address: string, message: AgentMessage) => {
+        await dispatchInbound(address, message, {
+          discovery,
+          audit,
+          eventBus: context.eventBus,
+          logger: context.logger,
+          verifyEnvelope,
+        });
+      });
+      context.logger.debug('Federation inbound dispatcher subscribed (with Ed25519 sig verify)');
+
+      // ADR-0309 T2′: wire the built-in local-memory responder so an
+      // inbound `memory-query` is served from THIS node's memory by
+      // default. The dispatcher emits `federation:inbound:memory-query`
+      // after the trust/signature gates pass; this subscriber re-checks
+      // the capability gate, reads local memory, PII-gates the result at
+      // the peer's trust level, and replies with a signed
+      // `memory-response` over the same transport.
+      //
+      // The memory backend is OPTIONAL: when a `memory` service is
+      // registered we adapt it to the narrow LocalMemoryReader port;
+      // absent one, an honest no-op reader answers `{ hit: false }`.
+      const memoryService = context.services.get<{
+        search?: (query: string, opts?: { namespace?: string }) => Promise<
+          ReadonlyArray<{ key?: string; id?: string; value?: unknown }>
+        >;
+      }>('memory');
+      const readLocalMemory: LocalMemoryReader = async (query, namespace) => {
+        if (!memoryService || typeof memoryService.search !== 'function') return [];
+        try {
+          const hits = await memoryService.search(query, { namespace });
+          const out: MemoryResponseEntry[] = [];
+          for (const h of hits ?? []) {
+            const key = (h.key ?? h.id ?? '') as string;
+            const value =
+              typeof h.value === 'string' ? h.value : JSON.stringify(h.value ?? null);
+            out.push({ key, value, namespace });
+          }
+          return out;
+        } catch (err) {
+          context.logger.warn(
+            `Local memory search failed: ${err instanceof Error ? err.message : err}`,
+          );
+          return [];
+        }
+      };
+
+      // Sign the reply envelope with the same canonicalization the
+      // dispatcher verifies on the far side.
+      const signEnvelope = (msg: AgentMessage): AgentMessage => {
+        const canon = canonicalizeEnvelopeForVerify(msg);
+        const signature = signBytes(canon);
+        return {
+          ...msg,
+          metadata: { ...(msg.metadata as Record<string, unknown>), signature },
+        };
+      };
+
+      context.eventBus.on('federation:inbound:memory-query', (evt: unknown) => {
+        // IEventBus delivers an IEvent<T> wrapper; the dispatcher's data
+        // is at `.payload`. Tolerate either shape defensively.
+        const data = (evt && typeof evt === 'object' && 'payload' in (evt as object)
+          ? (evt as { payload: unknown }).payload
+          : evt) as InboundMemoryQueryEvent;
+        if (!data || !data.peer || !data.message) return;
+        void handleInboundMemoryQuery(data, {
+          readLocalMemory,
+          pii: piiPipeline,
+          audit,
+          resolveAddress,
+          sendResponse: async (addr, m) => {
+            if (!transport) return;
+            await transport.send(addr, m);
+          },
+          signEnvelope,
+          localNodeId: () => nodeId,
+          logger: context.logger,
+        });
+      });
+      context.logger.debug('Federation memory responder subscribed (ADR-0309 T2′)');
+    } else {
+      context.logger.warn(
+        'Federation transport does not expose onMessage(); inbound bytes will queue but not dispatch. ' +
+          'Upgrade agentic-flow to a build that exposes transport.onMessage().',
+      );
     }
 
     context.logger.info('Agent Federation plugin initialized');
