@@ -238,7 +238,12 @@ const LANGUAGE_MAP: Record<string, string> = {
  */
 export class EnhancedModelRouter {
   private config: EnhancedModelRouterConfig;
-  private tinyDancerRouter: ModelRouter;
+  // The base text-routing path delegated to here is the local heuristic +
+  // Thompson-bandit ModelRouter — NOT the @ruvector/tiny-dancer neural router an
+  // earlier design (ADR-026) described (#2329, upstream 189e14b47). The public
+  // getStats() return still exposes the field as `tinyDancerStats` for
+  // telemetry-schema stability.
+  private baseRouter: ModelRouter;
 
   constructor(config?: Partial<EnhancedModelRouterConfig>) {
     this.config = {
@@ -262,7 +267,7 @@ export class EnhancedModelRouter {
       ...config,
     };
 
-    this.tinyDancerRouter = getModelRouter();
+    this.baseRouter = getModelRouter();
   }
 
   /**
@@ -394,14 +399,14 @@ export class EnhancedModelRouter {
       }
     }
 
-    // Step 4: Text-based complexity + tiny-dancer routing
-    const tinyDancerResult = await this.tinyDancerRouter.route(task);
+    // Step 4: Text-based complexity via the local heuristic + bandit router
+    const baseResult = await this.baseRouter.route(task);
 
-    // Step 5: Combine AST complexity with tiny-dancer result
+    // Step 5: Combine AST complexity with the text-routing result
     // Also boost if single tier3 keyword found
     let finalComplexity = astComplexity !== undefined
-      ? (astComplexity + tinyDancerResult.complexity) / 2
-      : tinyDancerResult.complexity;
+      ? (astComplexity + baseResult.complexity) / 2
+      : baseResult.complexity;
 
     // Boost complexity if tier3 keywords found (even just one)
     if (tier3Check.matches) {
@@ -416,7 +421,7 @@ export class EnhancedModelRouter {
         tier: 2,
         handler: 'haiku',
         model: 'haiku',
-        confidence: tinyDancerResult.confidence,
+        confidence: baseResult.confidence,
         complexity: finalComplexity,
         reasoning: `Low complexity (${(finalComplexity * 100).toFixed(0)}%) - using haiku`,
         canSkipLLM: false,
@@ -430,7 +435,7 @@ export class EnhancedModelRouter {
         tier: 2,
         handler: 'sonnet',
         model: 'sonnet',
-        confidence: tinyDancerResult.confidence,
+        confidence: baseResult.confidence,
         complexity: finalComplexity,
         reasoning: `Medium complexity (${(finalComplexity * 100).toFixed(0)}%) - using sonnet`,
         canSkipLLM: false,
@@ -443,7 +448,7 @@ export class EnhancedModelRouter {
       tier: 3,
       handler: 'opus',
       model: 'opus',
-      confidence: tinyDancerResult.confidence,
+      confidence: baseResult.confidence,
       complexity: finalComplexity,
       reasoning: `High complexity (${(finalComplexity * 100).toFixed(0)}%) - using opus`,
       canSkipLLM: false,
@@ -602,7 +607,10 @@ export class EnhancedModelRouter {
   } {
     return {
       config: { ...this.config },
-      tinyDancerStats: this.tinyDancerRouter.getStats(),
+      // Field name kept as `tinyDancerStats` for telemetry-schema stability;
+      // the underlying router is the local heuristic + bandit ModelRouter, not
+      // @ruvector/tiny-dancer. See #2329 (upstream 189e14b47).
+      tinyDancerStats: this.baseRouter.getStats(),
     };
   }
 }

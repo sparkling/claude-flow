@@ -1,20 +1,30 @@
 /**
- * Intelligent Model Router using Tiny Dancer
+ * Intelligent Model Router — lexical complexity heuristic + Thompson bandit
  *
- * Dynamically routes requests to optimal Claude model (haiku/sonnet/opus)
- * based on task complexity, confidence scores, and historical performance.
+ * Dynamically routes requests to the optimal Claude model (haiku/sonnet/opus)
+ * based on task complexity, uncertainty, and online-learned routing outcomes.
  *
- * Features:
- * - FastGRNN-based routing decisions (<100μs)
- * - Uncertainty quantification for model escalation
- * - Circuit breaker for failover
- * - Online learning from routing outcomes
- * - Complexity scoring via embeddings
+ * Mechanism (shipped):
+ * - Complexity scoring is pure-JS heuristic arithmetic (lexical / scope /
+ *   uncertainty signals) — no model load, no tensor math.
+ * - Model selection is a Thompson-sampling Beta-Bernoulli bandit with
+ *   contextual `Beta(α,β)` priors keyed by `${taskType}:${model}` (ADR-0278),
+ *   persisted to `.swarm/model-router-state.json` and updated via
+ *   `recordOutcome` / `sampleBeta` after each routing decision.
+ * - Uncertainty quantification + a circuit breaker drive model escalation
+ *   when the bandit's confidence is low or downstream failures are observed.
  *
  * Routing Strategy:
- * - Haiku: High confidence, low complexity (fast, cheap)
- * - Sonnet: Medium confidence, moderate complexity (balanced)
- * - Opus: Low confidence, high complexity (most capable)
+ * - Haiku: high confidence, low complexity (fast, cheap)
+ * - Sonnet: medium confidence, moderate complexity (balanced)
+ * - Opus: low confidence, high complexity (most capable)
+ *
+ * Note (#2329, upstream 189e14b47): an earlier design (this file's previous
+ * header) described a Tiny-Dancer / FastGRNN neural router with embedding-based
+ * complexity scoring. That neural path was never wired in here; the shipped
+ * router is the heuristic + bandit described above. ADR-0306 fixed the same
+ * drift on USERGUIDE.md + the multi-model-router triage; this aligns the source
+ * header it scoped out.
  *
  * @module model-router
  */
