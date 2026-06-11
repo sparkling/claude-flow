@@ -1,0 +1,11 @@
+{
+  "$schema": "Trust anchors for ADR-0324 / ADR-145 PluginIntegrityVerifier (upstream 1c98cbee6). Edits gated on CODEOWNERS review.",
+  "$note": "Shipped EMPTY on purpose: feedback-no-dormant-off-by-default-flags. An empty anchor set makes PluginIntegrityVerifier.verify() self-inert (pass-through, identical to no-verification) — NOT a dormant off-by-default flag. The verifier is ON; populate one real @sparkleideas signing-key anchor (below) to activate the supply-chain gate. Do NOT add the upstream all-zeros placeholder anchor — a non-empty set with no real key would reject every plugin as unknown-signer.",
+  "$example": {
+    "publicKey": "<hex Ed25519 public key of the @sparkleideas plugin signing key>",
+    "owner": "Sparkling Ideas — official-plugin signing key",
+    "scope": "@sparkleideas/*"
+  },
+  "version": 1,
+  "anchors": []
+}

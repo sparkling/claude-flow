@@ -109,6 +109,41 @@ export {
   type VerificationCode,
 } from './token-generator.js';
 
+// Agent Authorization Propagation
+// ADR-0324 (Batch-U deferred, upstream 1c98cbee6 ADR-144 P1; shipped
+// ON+self-inert per feedback-no-dormant-off-by-default-flags).
+// Action-layer: SendMessage envelope + per-action scope check + MCP server
+// identity probe. Self-inert until an AuthScope is present.
+export {
+  AgentAuthorizationPropagator,
+  AuthorizationPropagationError,
+  makeLegacyPermissiveScope,
+  type AuthScope,
+  type SendMessageEnvelope,
+  type ToolCallDecision,
+} from './authorization/propagator.js';
+
+// Plugin Integrity Verifier
+// ADR-0324 (Batch-U deferred, upstream 1c98cbee6 ADR-145 P1; shipped
+// ON+self-inert per feedback-no-dormant-off-by-default-flags).
+// Install-layer: Ed25519 signature verification + trust-anchor allowlist.
+// Self-inert (pass-through) until a trust anchor is configured. Stage-2
+// semantic-intent scan (SCH defence) lands in P2.
+export {
+  PluginIntegrityVerifier,
+  canonicalize,
+  hashManifest,
+  fingerprint,
+  findAnchor,
+  type PluginManifest,
+  type SignedPluginManifest,
+  type TrustAnchor,
+  type TrustAnchors,
+  type VerificationStatus,
+  type VerificationResult,
+  type VerifierConfig,
+} from './plugins/integrity-verifier.js';
+
 // ============================================================================
 // Convenience Factory Functions
 // ============================================================================
