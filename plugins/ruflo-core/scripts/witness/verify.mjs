@@ -104,7 +104,18 @@ async function verifySignature(witness, repoRoot) {
     return { manifestHashOk: false, publicKeyReproducible: false, signatureValid: false };
   }
 
-  ed.etc.sha512Sync = (...m) => { const h = createHash('sha512'); for (const x of m) h.update(x); return h.digest(); };
+  // noble/ed25519 v2 freezes `etc` and ships sync verify by default — the
+  // sha512Sync shim is only needed for v1. Guard the assignment so it works on
+  // both major versions (#2274, upstream 5f3d7f33f); the unconditional assign
+  // threw `TypeError: object is not extensible` on v2 and aborted every run.
+  if (!ed.etc.sha512Sync) {
+    try {
+      ed.etc.sha512Sync = (...m) => { const h = createHash('sha512'); for (const x of m) h.update(x); return h.digest(); };
+    } catch {
+      // v2 freezes `etc`; assignment is unnecessary because sha512Sync is
+      // already wired internally. Swallow the TypeError and continue.
+    }
+  }
 
   const recomputed = createHash('sha256').update(JSON.stringify(witness.manifest)).digest('hex');
   const manifestHashOk = recomputed === witness.integrity.manifestHash;

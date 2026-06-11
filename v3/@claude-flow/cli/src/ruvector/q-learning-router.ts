@@ -431,6 +431,18 @@ export class QLearningRouter {
   }
 
   /**
+   * Invalidate a single state's cached route — called after its Q-values change
+   * so the next route() reflects the update immediately (#bugB, upstream
+   * a73a2cbe3, hand-ported). The periodic full sweep (every 50 updates) below
+   * otherwise hid a freshly-learned Q-update behind a stale cached decision.
+   */
+  private invalidateCacheEntry(stateKey: string): void {
+    if (this.routeCache.delete(stateKey)) {
+      this.cacheOrder = this.cacheOrder.filter((k) => k !== stateKey);
+    }
+  }
+
+  /**
    * Update Q-values based on feedback
    * Includes experience replay for stable learning
    */
@@ -459,6 +471,13 @@ export class QLearningRouter {
 
     // Perform direct update
     const tdError = this.updateQValue(stateKey, actionIdx, reward, nextStateKey);
+
+    // #bugB (upstream a73a2cbe3): invalidate THIS state's cached route
+    // immediately. The periodic full invalidation (every 50 updates, below)
+    // otherwise left a freshly-learned Q-update hidden behind a stale cached
+    // decision, so `route feedback` appeared to have no effect on routing
+    // until 50 updates accumulated.
+    this.invalidateCacheEntry(stateKey);
 
     // Perform experience replay
     if (this.config.enableReplay && this.replayBuffer.length >= this.config.replayBatchSize) {

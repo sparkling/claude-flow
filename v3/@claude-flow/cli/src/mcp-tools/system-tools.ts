@@ -103,7 +103,11 @@ export const systemTools: MCPTool[] = [
     },
     handler: async (input) => {
       const metrics = loadMetrics();
-      const uptime = Date.now() - new Date(metrics.startTime).getTime();
+      // #2235(B) (upstream 455152da0, hand-ported): live process uptime, not the
+      // persisted metrics.startTime (the file's creation timestamp, which
+      // survived across restarts and made system_status report a stale
+      // multi-day uptime on a freshly-started server).
+      const uptime = Math.floor(process.uptime() * 1000);
 
       const status = {
         status: metrics.health >= 0.8 ? 'healthy' : metrics.health >= 0.5 ? 'degraded' : 'unhealthy',
@@ -237,7 +241,7 @@ export const systemTools: MCPTool[] = [
         agents: agentCounts,
         tasks: taskCounts,
         // requests: no MCP request tracking infrastructure yet — stays at stored value
-        uptime: Date.now() - new Date(store.startTime).getTime(),
+        uptime: Math.floor(process.uptime() * 1000), // #2235(B) — live process uptime
         lastCheck: new Date().toISOString(),
       };
 
@@ -436,6 +440,17 @@ export const systemTools: MCPTool[] = [
       },
     },
     handler: async () => {
+      // #2215 (upstream bb3489665, hand-ported): flashAttention must reflect the
+      // runtime probe, not a stale literal. Same source-of-truth as
+      // hooks_intelligence / neural_status so the tools can never report
+      // contradictory state for the same daemon.
+      let flashAttentionAvailable = false;
+      try {
+        const { getFlashAttention } = await import('@claude-flow/neural');
+        flashAttentionAvailable = getFlashAttention() !== null;
+      } catch {
+        flashAttentionAvailable = false;
+      }
       return {
         version: PKG_VERSION,
         nodeVersion: process.version,
@@ -450,7 +465,7 @@ export const systemTools: MCPTool[] = [
           neural: true,
           hnsw: true,
           quantization: true,
-          flashAttention: false,
+          flashAttention: flashAttentionAvailable,
         },
         limits: {
           maxAgents: 100,
