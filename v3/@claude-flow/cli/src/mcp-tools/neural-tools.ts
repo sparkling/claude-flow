@@ -175,6 +175,33 @@ export function saveNeuralStore(store: NeuralStore): void {
   writeFileSync(getNeuralPath(), JSON.stringify(store, null, 2), 'utf-8');
 }
 
+/**
+ * Neural-store snapshot for the unified learning-stats view (ADR-0326, upstream
+ * ca77f8307). Reads the on-disk neural store and reports pattern/model counts +
+ * a per-type pattern breakdown. Read-only; never writes. One of the four
+ * primitives getUnifiedLearningStats() aggregates.
+ */
+export function getNeuralStoreStats(): {
+  patternCount: number;
+  byType: Record<string, number>;
+  modelCount: number;
+  source: string;
+} {
+  const store = loadNeuralStore();
+  const patterns = Object.values(store.patterns ?? {});
+  const byType: Record<string, number> = {};
+  for (const p of patterns) {
+    const t = p.type || 'unknown';
+    byType[t] = (byType[t] ?? 0) + 1;
+  }
+  return {
+    patternCount: patterns.length,
+    byType,
+    modelCount: Object.keys(store.models ?? {}).length,
+    source: '.claude-flow/neural/models.json (neural store)',
+  };
+}
+
 // Generate embedding - uses real ML embeddings if available, falls back to deterministic hash
 export async function generateEmbedding(text?: string, dims: number = 384): Promise<number[]> {
   // If real embeddings available and text provided, use them

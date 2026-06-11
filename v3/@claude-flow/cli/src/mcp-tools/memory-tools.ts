@@ -150,6 +150,43 @@ async function getMemoryFunctions(): Promise<{
   };
 }
 
+/**
+ * Memory-bridge snapshot for the unified learning-stats view (ADR-0326, upstream
+ * ca77f8307). Upstream exported this from a dedicated `memory-bridge.ts`; the
+ * fork's bridge logic lives here (the `memory_bridge_status` tool), so the
+ * exported primitive lives here too and reuses the same `getMemoryFunctions()`
+ * (routeMemoryOp) surface. Read-only; one of the four primitives
+ * getUnifiedLearningStats() aggregates. `reachable: false` means the AgentDB
+ * bridge could not be probed (callers treat counts as unknown, not zero).
+ */
+export async function getMemoryBridgeStats(): Promise<{
+  totalEntries: number;
+  perNamespace: Record<string, number>;
+  source: string;
+  reachable: boolean;
+}> {
+  const source = 'memory-router routeMemoryOp (AgentDB entries via listEntries)';
+  try {
+    const { listEntries } = await getMemoryFunctions();
+    const all = await listEntries({});
+    const totalEntries = all?.entries?.length ?? 0;
+    // Per-namespace breakdown for the learning-relevant namespaces the hooks
+    // pipeline writes to (post-edit/-command persistence, pretrain bundle,
+    // promoted patterns/skills). Each is a best-effort probe.
+    const perNamespace: Record<string, number> = {};
+    for (const ns of ['commands', 'edits', 'patterns', 'solutions', 'tasks', 'claude-memories']) {
+      try {
+        const r = await listEntries({ namespace: ns });
+        const n = r?.entries?.length ?? 0;
+        if (n > 0) perNamespace[ns] = n;
+      } catch { /* namespace probe failed — omit */ }
+    }
+    return { totalEntries, perNamespace, source, reachable: true };
+  } catch {
+    return { totalEntries: 0, perNamespace: {}, source: `${source} (unreachable)`, reachable: false };
+  }
+}
+
 // D-2: Input bounds for memory parameters
 const MAX_KEY_LENGTH = 1024;
 const MAX_VALUE_SIZE = 1024 * 1024; // 1MB

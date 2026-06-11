@@ -25,17 +25,45 @@
  */
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync, statSync, unlinkSync, readdirSync } from 'fs';
+import * as nodeFs from 'fs';
 import { dirname, join, resolve } from 'path';
 import { type MCPTool, findProjectRoot } from './types.js';
 import { tryOptionalImport } from '../utils/optional-import.js';
+// ADR-0327 (Batch-U follow-up of upstream c983c0d80 #6): advisory tool-loop
+// circuit breaker — orthogonal to the security tool-output-guardrail (injection).
+import { checkCommandLoop, recordCommandOutcome } from './tool-loop-guardrail.js';
 import { withTimeoutLogged } from '../utils/timeout.js';
 import { BoundedLRU } from '../utils/bounded-lru.js';
 // ADR-0218 / #1845: producer wires validateText for the dispatch context.
 // (validate-input.ts also exports an unrelated 11-member agent WorkerType —
 // do NOT import it; the daemon's 12-member WorkerType lives in this file.)
-import { validateText } from './validate-input.js';
+// ADR-0322 (upstream 0988d92ce): validatePath used by hooks_codemod for
+// path-containment of codemod targets.
+import { validateText, validatePath } from './validate-input.js';
 // ADR-0072: EMBEDDING_DIM removed (ADR-0052 superseded); 768 = all-mpnet-base-v2 output
 const EMBEDDING_DIM = 768;
+
+/**
+ * Strip extended-thinking blocks from text before it enters a learning
+ * trajectory (hermes-agent think_scrubber pattern). Fork port of upstream
+ * c983c0d80 #14 — ADR-0327. Claude models with extended thinking emit
+ * <thinking>/<think>/<reasoning>/<REASONING_SCRATCHPAD> blocks; if those land in
+ * a trajectory's action/result text, the DISTILL step (intelligence.ts
+ * distillLearning -> mpnet embeddings, ADR-0068) embeds reasoning-token content
+ * that does not generalize, contaminating pattern confidence. Boundary-gated:
+ * only strips well-formed paired tags, leaving prose that merely mentions the
+ * tag names untouched.
+ */
+export function scrubReasoningBlocks(text: string): string {
+  if (typeof text !== 'string' || text.indexOf('<') === -1) return text;
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+    .replace(/<REASONING_SCRATCHPAD>[\s\S]*?<\/REASONING_SCRATCHPAD>/gi, '')
+    .trim();
+}
 
 // ADR-0086 T2.7: search via routeMemoryOp (was memory-initializer searchEntries)
 // Lazy-loaded wrapper preserves the same call-site signature.
@@ -922,6 +950,15 @@ export const hooksPreCommand: MCPTool = {
         : assessment.level >= 0.3 ? 'medium'
           : 'low';
 
+    // ADR-0327 (upstream c983c0d80 #6): tool-loop circuit breaker — warn/block
+    // when this exact command has failed repeatedly in a row (an agent stuck
+    // looping on a failing call). Advisory; orthogonal to the risk assessment.
+    const loop = checkCommandLoop(command);
+    const recommendations = assessment.warnings.length > 0
+      ? ['Review warnings before proceeding', 'Consider using safer alternative']
+      : ['Command appears safe to execute'];
+    if (loop.hint) recommendations.unshift(loop.hint);
+
     return {
       command,
       riskLevel,
@@ -930,11 +967,11 @@ export const hooksPreCommand: MCPTool = {
         severity: assessment.level >= 0.6 ? 'high' : 'medium',
         description: warning,
       })),
-      recommendations: assessment.warnings.length > 0
-        ? ['Review warnings before proceeding', 'Consider using safer alternative']
-        : ['Command appears safe to execute'],
+      recommendations,
+      loopGuard: { verdict: loop.verdict, consecutiveFailures: loop.consecutiveFailures },
       safeAlternatives: [],
-      shouldProceed: assessment.level < 0.7,
+      // Don't proceed on a high-risk command OR a hard loop-block.
+      shouldProceed: assessment.level < 0.7 && loop.verdict !== 'block',
     };
   },
 };
@@ -956,6 +993,11 @@ export const hooksPostCommand: MCPTool = {
     const success = exitCode === 0;
     const timestamp = new Date().toISOString();
     const cmdId = `cmd-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+    // ADR-0327 (upstream c983c0d80 #6): feed the tool-loop circuit breaker so
+    // pre-command can warn/block on repeated consecutive failures of the same
+    // command.
+    recordCommandOutcome(command, success);
 
     // HK-002b: Persist command record via memory-router (ADR-049 / ADR-0086 T2.7)
     let storeResult = { success: false };
@@ -2920,8 +2962,11 @@ export const hooksTrajectoryStep: MCPTool = {
   },
   handler: async (params: Record<string, unknown>) => {
     const trajectoryId = params.trajectoryId as string;
-    const action = params.action as string;
-    const result = (params.result as string) || 'success';
+    // ADR-0327 (upstream c983c0d80 #14): scrub extended-thinking blocks so
+    // reasoning tokens don't contaminate the learning signal — the DISTILL step
+    // (intelligence.distillLearning) embeds this text into mpnet pattern vectors.
+    const action = scrubReasoningBlocks(params.action as string);
+    const result = scrubReasoningBlocks((params.result as string) || 'success');
     const quality = (params.quality as number) || 0.85;
     const timestamp = new Date().toISOString();
     const stepId = `step-${Date.now()}`;
@@ -4698,6 +4743,189 @@ export const hooksModelStats: MCPTool = {
   },
 };
 
+/**
+ * Unified learning-stats aggregator MCP tool (ADR-0326; upstream ca77f8307,
+ * #2245). One honest call across the four historical stat sources — every
+ * sub-view names its store and a `consistency` block flags relationships that
+ * drift. Benign read-through observability view: no mechanism change, does not
+ * touch the ADR-0290 learning seam.
+ */
+export const hooksIntelligenceUnifiedStats: MCPTool = {
+  name: 'hooks_intelligence_unified-stats',
+  description: 'One honest view across the four learning stat sources: globalStats (`.claude-flow/neural/stats.json`), the in-memory SONA coordinator, memory-bridge AgentDB entries, and the neural-patterns store. Each sub-view names its source path. The `consistency` block notes cross-store drift (e.g. globalStats reports N patterns but neural_patterns is empty). Use this when one dashboard call should show "did learning happen" coherently — vs the four original aggregators which each return only their narrow slice. See ADR-0326.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      verbose: { type: 'boolean', description: 'Include extended breakdowns', default: true },
+    },
+  },
+  handler: async (_input: Record<string, unknown>) => {
+    const intel = await import('../memory/intelligence.js');
+    return intel.getUnifiedLearningStats();
+  },
+};
+
+// ============================================================================
+// Deterministic codemod execution — the real Tier-1 path (ADR-0322; upstream
+// 0988d92ce/ADR-143). Imports the deterministic codemod engine
+// (src/ruvector/codemods/engine.ts, authored by the codemod-engine sibling).
+// ============================================================================
+
+// Supported source extensions for codemods.
+const CODEMOD_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']);
+const CODEMOD_MAX_FILES = 2000;
+
+function codemodLangForExt(abs: string): 'javascript' | 'typescript' | 'jsx' | 'tsx' {
+  const ext = abs.slice(abs.lastIndexOf('.')).toLowerCase();
+  if (ext === '.tsx') return 'tsx';
+  if (ext === '.jsx') return 'jsx';
+  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return 'javascript';
+  return 'typescript';
+}
+
+export const hooksCodemod: MCPTool = {
+  name: 'hooks_codemod',
+  description: 'Apply a deterministic, $0 (no-LLM) code transform — the real Tier-1 execution path (ADR-0322). Supported intents: var-to-const, remove-console, add-logging. Uses the TypeScript compiler with formatting-preserving edits (comments/whitespace survive). Targets: raw `code` (returns transformed text, writes nothing) | a single `file` | a `files` array | a `glob` pattern (batch — applies the intent across every match in one $0 call). Files are rewritten in place unless `dryRun`. Intents that need reasoning — add-types, add-error-handling, async-await — are NOT supported here; route those to a model via hooks_model-route. Use when hooks_pre-task / hooks_route flagged a deterministic structural edit.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      intent: { type: 'string', enum: ['var-to-const', 'remove-console', 'add-logging'], description: 'Deterministic codemod to apply' },
+      file: { type: 'string', description: 'Path to a single existing source file to transform in place' },
+      files: { type: 'array', items: { type: 'string' }, description: 'Multiple file paths to transform in one batch call' },
+      glob: { type: 'string', description: 'Glob pattern (relative to project root, e.g. "src/**/*.ts") — applies the intent to every matching source file' },
+      code: { type: 'string', description: 'Raw source to transform instead of files (returns transformed code, writes nothing)' },
+      language: { type: 'string', enum: ['javascript', 'typescript', 'jsx', 'tsx'], description: 'Language hint for raw code (default typescript; inferred from extension for files)' },
+      dryRun: { type: 'boolean', description: 'Report what would change without writing files' },
+    },
+    required: ['intent'],
+  },
+  handler: async (params: Record<string, unknown>) => {
+    const intent = params.intent as string;
+    const file = params.file as string | undefined;
+    const files = Array.isArray(params.files) ? (params.files as string[]) : undefined;
+    const glob = params.glob as string | undefined;
+    const rawCode = params.code as string | undefined;
+    const dryRun = params.dryRun === true;
+    const langParam = params.language as string | undefined;
+
+    // QUEEN-RECONCILE (VERIFIED 2026-06-11): the sibling codemod-engine agent's
+    // engine.ts exports exactly `applyCodemod(intent, code, { language }):
+    // CodemodResult` + `isDeterministicCodemod(intent): intent is CodemodIntent`,
+    // matching this import 1:1. CodemodResult fields consumed below:
+    // { success, changed, output, edits, language, reason }. (Note: the router's
+    // own intent type is `EditIntentType`/`isDeterministicIntent` per ADR-0319 —
+    // the engine deliberately uses its own `CodemodIntent`, which is what this
+    // execution surface imports; the two are intentionally distinct surfaces.)
+    const { applyCodemod, isDeterministicCodemod } = await import('../ruvector/codemods/engine.js');
+    if (!isDeterministicCodemod(intent)) {
+      return {
+        success: false,
+        error: `"${intent}" is not a deterministic codemod. Route it to a model via hooks_model-route (Tier 2/3).`,
+      };
+    }
+
+    // Mode A: transform raw code (never touches disk)
+    if (typeof rawCode === 'string') {
+      const language = (langParam as 'javascript' | 'typescript' | 'jsx' | 'tsx') ?? 'typescript';
+      const r = applyCodemod(intent, rawCode, { language });
+      return {
+        success: r.success, intent, mode: 'code', changed: r.changed, edits: r.edits,
+        output: r.output, language: r.language, reason: r.reason, cost: 0, tier: 1,
+      };
+    }
+
+    // Fork: project root via findProjectRoot() (ADR-0100 — the fork does NOT use
+    // upstream's getProjectCwd()).
+    const cwd = findProjectRoot();
+
+    // Resolve the target file set (single / array / glob), with path containment.
+    const resolveTargets = (): { abs: string[]; truncated: boolean; error?: string } => {
+      const out = new Set<string>();
+      const addRaw = (p: string): string | undefined => {
+        const v = validatePath(p, 'path');
+        if (!v.valid) return v.error;
+        const abs = resolve(cwd, v.sanitized);
+        if (!abs.startsWith(cwd)) return `path escapes project root: ${p}`;
+        out.add(abs);
+        return undefined;
+      };
+
+      if (file) { const e = addRaw(file); if (e) return { abs: [], truncated: false, error: e }; }
+      if (files) for (const p of files) { const e = addRaw(p); if (e) return { abs: [], truncated: false, error: e }; }
+      if (glob) {
+        if (glob.includes('..')) return { abs: [], truncated: false, error: 'glob must not contain ".."' };
+        // fs.globSync is Node 22+; @types/node here predates it, so type it locally.
+        const globSync = (nodeFs as { globSync?: (p: string, o?: { cwd?: string }) => string[] }).globSync;
+        if (typeof globSync !== 'function') {
+          return { abs: [], truncated: false, error: 'glob requires Node 22+ (fs.globSync unavailable); pass `files[]` instead' };
+        }
+        let matches: string[] = [];
+        try {
+          matches = globSync(glob, { cwd });
+        } catch (err) {
+          return { abs: [], truncated: false, error: `glob failed: ${(err as Error).message}` };
+        }
+        for (const m of matches) {
+          const abs = resolve(cwd, m);
+          if (abs.startsWith(cwd) && CODEMOD_EXTENSIONS.has(abs.slice(abs.lastIndexOf('.')).toLowerCase())) {
+            out.add(abs);
+          }
+        }
+      }
+
+      const all = [...out];
+      const truncated = all.length > CODEMOD_MAX_FILES;
+      return { abs: truncated ? all.slice(0, CODEMOD_MAX_FILES) : all, truncated };
+    };
+
+    const targets = resolveTargets();
+    if (targets.error) return { success: false, error: targets.error };
+    if (targets.abs.length === 0) {
+      return { success: false, error: 'No target files. Provide `code`, `file`, `files[]`, or a matching `glob`.' };
+    }
+
+    // Apply to each file.
+    const results: Array<Record<string, unknown>> = [];
+    let filesChanged = 0, totalEdits = 0, failures = 0, skipped = 0;
+
+    for (const abs of targets.abs) {
+      const rel = abs.startsWith(cwd) ? abs.slice(cwd.length).replace(/^[/\\]/, '') : abs;
+      if (!existsSync(abs)) { results.push({ file: rel, success: false, reason: 'not found' }); failures++; continue; }
+      if (!CODEMOD_EXTENSIONS.has(abs.slice(abs.lastIndexOf('.')).toLowerCase())) {
+        results.push({ file: rel, success: false, reason: 'unsupported extension' }); skipped++; continue;
+      }
+      const before = readFileSync(abs, 'utf-8');
+      const r = applyCodemod(intent, before, { language: codemodLangForExt(abs) });
+      if (!r.success) { results.push({ file: rel, success: false, changed: false, reason: r.reason }); failures++; continue; }
+      const written = r.changed && !dryRun;
+      if (written) writeFileSync(abs, r.output, 'utf-8');
+      if (r.changed) { filesChanged++; totalEdits += r.edits; }
+      results.push({ file: rel, success: true, changed: r.changed, edits: r.edits, written });
+    }
+
+    const single = targets.abs.length === 1 && !files && !glob;
+    return {
+      success: failures === 0,
+      intent,
+      mode: single ? (dryRun ? 'dry-run' : 'file') : (dryRun ? 'batch-dry-run' : 'batch'),
+      summary: {
+        filesScanned: targets.abs.length,
+        filesChanged,
+        filesUnchanged: targets.abs.length - filesChanged - failures - skipped,
+        totalEdits,
+        failures,
+        skipped,
+        truncatedAt: targets.truncated ? CODEMOD_MAX_FILES : undefined,
+      },
+      results: results.slice(0, 500),
+      resultsTruncated: results.length > 500,
+      cost: 0,
+      tier: 1,
+      timestamp: new Date().toISOString(),
+    };
+  },
+};
+
 // Simple fallback complexity analyzer
 function analyzeComplexityFallback(task: string): number {
   const taskLower = task.toLowerCase();
@@ -4789,6 +5017,8 @@ export const hooksTools: MCPTool[] = [
   hooksPatternStore,
   hooksPatternSearch,
   hooksIntelligenceStats,
+  // ADR-0326 (upstream ca77f8307): unified learning-stats read-through view
+  hooksIntelligenceUnifiedStats,
   hooksIntelligenceLearn,
   hooksIntelligenceAttention,
   // Worker tools
@@ -4801,6 +5031,8 @@ export const hooksTools: MCPTool[] = [
   hooksModelRoute,
   hooksModelOutcome,
   hooksModelStats,
+  // ADR-0322 (upstream 0988d92ce): deterministic Tier-1 codemod execution
+  hooksCodemod,
 ];
 
 export default hooksTools;
