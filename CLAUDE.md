@@ -72,14 +72,16 @@
 
 ### 3-Tier Model Routing (ADR-026)
 
-| Tier | Handler | Latency | Cost | Use Cases |
-|------|---------|---------|------|-----------|
-| **1** | Agent Booster (WASM) | <1ms | $0 | Simple transforms (var→const, add types, etc.) — **Skip LLM entirely** |
-| **2** | Haiku | ~500ms | $0.0002 | Simple tasks, low complexity (<30%) |
-| **3** | Sonnet/Opus | 2-5s | $0.003-0.015 | Complex reasoning, architecture, security (>30%) |
+| Tier | Handler | Cost | Use Cases |
+|------|---------|------|-----------|
+| **1** | Deterministic edit (you apply via Edit) | $0 | Deterministic structural edits — `var-to-const`, `remove-console`, `add-logging` — **apply yourself via the Edit tool, no model cost** |
+| **2** | Haiku | $0.0002 | Simple tasks, low complexity (<30%); also `add-types` / `add-error-handling` / `async-await` (need inference) |
+| **3** | Sonnet/Opus | $0.003-0.015 | Complex reasoning, architecture, security (>30%) |
 
-- Always check for `[AGENT_BOOSTER_AVAILABLE]` or `[TASK_MODEL_RECOMMENDATION]` before spawning agents
-- Use Edit tool directly when `[AGENT_BOOSTER_AVAILABLE]` — intent types: `var-to-const`, `add-types`, `add-error-handling`, `async-await`, `add-logging`, `remove-console`
+<!-- ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): Tier-1 is an honest "apply this small structural edit yourself" recommendation — the fork ships no WASM/Agent-Booster transform executor. Only the three genuinely-deterministic intents are Tier-1; the inference intents route to a model. -->
+
+- Always check for `[DETERMINISTIC_EDIT]` or `[TASK_MODEL_RECOMMENDATION]` before spawning agents
+- When you see `[DETERMINISTIC_EDIT]`, apply the change yourself with the Edit tool — no model needed (intents: `var-to-const`, `remove-console`, `add-logging`)
 
 ## Swarm Configuration & Anti-Drift
 

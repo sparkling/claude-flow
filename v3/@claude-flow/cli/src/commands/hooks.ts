@@ -1844,13 +1844,14 @@ const preTaskCommand: Command = {
         output.writeln(output.bold('Intelligent Model Routing'));
 
         if (routeResult.tier === 1) {
-          // Agent Booster can handle this task - skip LLM entirely
-          output.writeln(output.success(`  Tier 1: Agent Booster (WASM)`));
+          // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143):
+          // deterministic structural edit — the human applies it via the Edit
+          // tool at no model cost (the fork ships no transform executor).
+          output.writeln(output.success(`  Tier 1: deterministic structural edit — apply via Edit, no model cost`));
           output.writeln(output.dim(`  Intent: ${routeResult.agentBoosterIntent?.type}`));
-          output.writeln(output.dim(`  Latency: <1ms | Cost: $0`));
           output.writeln();
           output.writeln(output.dim('─'.repeat(60)));
-          output.writeln(output.bold(output.success(`[AGENT_BOOSTER_AVAILABLE] Skip LLM - use Agent Booster for "${routeResult.agentBoosterIntent?.type}"`)));
+          output.writeln(output.bold(output.success(`[DETERMINISTIC_EDIT] Apply "${routeResult.agentBoosterIntent?.type}" yourself via the Edit tool — no LLM needed`)));
           output.writeln(output.dim(`Confidence: ${(routeResult.confidence * 100).toFixed(0)}% | Intent: ${routeResult.agentBoosterIntent?.description}`));
           output.writeln(output.dim('─'.repeat(60)));
         } else {

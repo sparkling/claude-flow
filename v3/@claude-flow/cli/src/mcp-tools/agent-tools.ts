@@ -336,12 +336,15 @@ export const agentTools: MCPTool[] = [
           '(3) claude -p — headless background instance.',
       };
 
-      // Add Agent Booster info if task can skip LLM
+      // Deterministic-edit info if the task needs no LLM.
+      // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): there is no
+      // `agent_booster_edit_file` tool in the fork — Tier-1 means apply the edit
+      // yourself via the Edit tool at no model cost.
       if (routingResult.canSkipLLM) {
         response.canSkipLLM = true;
         response.agentBoosterIntent = routingResult.agentBoosterIntent;
         response.tier = routingResult.tier;
-        response.note = `Agent Booster can handle "${routingResult.agentBoosterIntent}" - use agent_booster_edit_file MCP tool`;
+        response.note = `Deterministic structural edit "${routingResult.agentBoosterIntent}" — apply it yourself via the Edit tool; no LLM needed`;
       } else if (routingResult.tier) {
         response.tier = routingResult.tier;
       }

@@ -117,12 +117,9 @@ declare module '@sparkleideas/agentic-flow/orchestration' {
   export function getRunArtifacts(id: string): Promise<any>;
   export function cancelRun(id: string): Promise<any>;
 }
-declare module '@sparkleideas/agentic-flow/agent-booster' {
-  export class EnhancedAgentBooster { constructor(...args: any[]); }
-  export function getEnhancedBooster(...args: any[]): any;
-  export function enhancedApply(opts: { code: string; edit: string; language?: string }): Promise<{ confidence: number; output: string }>;
-  export function benchmark(...args: any[]): Promise<any>;
-}
+// ADR-0319: the `@sparkleideas/agentic-flow/agent-booster` ambient decl (codemod
+// mirror of the unscoped form removed above) was deleted — zero importers remain
+// after EnhancedModelRouter.tryAgentBooster() was removed as dead code.
 declare module '@sparkleideas/agentic-flow/router' {
   export class ModelRouter { constructor(...args: any[]); route(prompt: string, opts?: any): Promise<any>; getStats(): any; }
   export const CLAUDE_MODELS: any;
@@ -154,19 +151,11 @@ declare module 'agentic-flow/orchestration' {
   export function cancelRun(id: string): Promise<any>;
 }
 
-declare module 'agentic-flow/agent-booster' {
-  export class EnhancedAgentBooster { constructor(...args: any[]); }
-  export function getEnhancedBooster(...args: any[]): any;
-  export function enhancedApply(opts: { code: string; edit: string; language?: string }): Promise<{ confidence: number; output: string }>;
-  export function benchmark(...args: any[]): Promise<any>;
-}
-
-declare module 'agentic-flow/intelligence/agent-booster-enhanced' {
-  export class EnhancedAgentBooster { constructor(...args: any[]); }
-  export function getEnhancedBooster(...args: any[]): any;
-  export function enhancedApply(opts: { code: string; edit: string; language?: string }): Promise<{ confidence: number; output: string }>;
-  export function benchmark(...args: any[]): Promise<any>;
-}
+// ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the ambient
+// declarations for `agentic-flow/agent-booster` and
+// `agentic-flow/intelligence/agent-booster-enhanced` were removed — their sole
+// importer (EnhancedModelRouter.tryAgentBooster) was deleted as dead code that
+// advertised a transform executor the fork does not ship.
 
 declare module 'agentic-flow/sdk' {
   const sdk: any;

@@ -1002,7 +1002,10 @@ async function getCausalRecallInstance() {
 
 export const hooksRoute: MCPTool = {
   name: 'hooks_route',
-  description: 'Get a 3-tier routing recommendation for a task: Tier 1 (Agent Booster, 0ms / $0 — for var-to-const, add-types, etc.), Tier 2 (Haiku — simple), Tier 3 (Sonnet/Opus — complex). Use this BEFORE spawning an agent to avoid sending simple transforms to Sonnet. Native tools have no equivalent — Claude Code does not introspect its own model-selection cost. Returns the recommended model + a `[AGENT_BOOSTER_AVAILABLE]` literal when the WASM bypass applies.',
+  // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): Tier-1 is a
+  // deterministic-edit recommendation (apply via Edit, no LLM) for the three
+  // structural intents only — NOT a WASM/$0/352x executor (the fork ships none).
+  description: 'Get a 3-tier routing recommendation for a task: Tier 1 (deterministic structural edits — var-to-const, remove-console, add-logging — apply yourself via the Edit tool, no model needed), Tier 2 (Haiku — simple), Tier 3 (Sonnet/Opus — complex). Use this BEFORE spawning an agent to avoid sending simple transforms to Sonnet. Native tools have no equivalent — Claude Code does not introspect its own model-selection cost. Returns the recommended model + a `[DETERMINISTIC_EDIT]` literal when the task is a deterministic structural edit.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -1554,7 +1557,9 @@ export const hooksPreTask: MCPTool = {
       const routeResult = await router.route(description, { filePath });
 
       if (routeResult.tier === 1) {
-        // Agent Booster can handle this task
+        // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): a
+        // deterministic structural edit — apply it via the Edit tool; no LLM
+        // needed. The `handler` field is kept for routing-schema stability.
         modelRouting = {
           tier: 1,
           handler: 'agent-booster',
@@ -1564,7 +1569,7 @@ export const hooksPreTask: MCPTool = {
           confidence: routeResult.confidence,
           estimatedLatencyMs: routeResult.estimatedLatencyMs,
           estimatedCost: routeResult.estimatedCost,
-          recommendation: `[AGENT_BOOSTER_AVAILABLE] Skip LLM - use Agent Booster for "${routeResult.agentBoosterIntent?.type}"`,
+          recommendation: `[DETERMINISTIC_EDIT] Apply "${routeResult.agentBoosterIntent?.type}" yourself via the Edit tool — no LLM needed`,
         };
       } else {
         // LLM required

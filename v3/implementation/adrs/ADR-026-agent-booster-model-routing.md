@@ -366,9 +366,9 @@ async function determineAgentModel(
 
 **When you see these recommendations:**
 
-1. `[AGENT_BOOSTER_AVAILABLE]` → The task can be handled by Agent Booster (352x faster, $0)
-   - Use the `agent_booster_edit_file` MCP tool instead of Task tool
-   - Example: `mcp__agentic-flow__agent_booster_edit_file({ target_filepath: "...", instructions: "...", code_edit: "..." })`
+1. `[DETERMINISTIC_EDIT]` → The task is a deterministic structural edit (no LLM needed)
+   - Apply it yourself via the Edit tool at no model cost — there is no separate edit MCP tool
+   - ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the fork ships no transform executor, so Tier-1 is a human-applied Edit, not a WASM/`agent_booster_edit_file` capability
 
 2. `[TASK_MODEL_RECOMMENDATION] Use model="X"` → Use that model in Task tool
    - Example: `Task({ ..., model: "opus" })`

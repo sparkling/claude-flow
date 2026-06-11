@@ -21,11 +21,13 @@
 
 **The routing system has 3 tiers for optimal cost/performance:**
 
-| Tier | Handler | Latency | Cost | Use Cases |
-|------|---------|---------|------|-----------|
-| **1** | Agent Booster | <1ms | $0 | Simple transforms (var→const, add-types, remove-console) |
-| **2** | Haiku | ~500ms | $0.0002 | Simple tasks, bug fixes, low complexity |
-| **3** | Sonnet/Opus | 2-5s | $0.003-$0.015 | Architecture, security, complex reasoning |
+<!-- ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): Tier-1 is an honest "apply this small structural edit yourself via the Edit tool" recommendation — the fork ships no WASM/Agent-Booster transform executor. Only the three genuinely-deterministic intents are Tier-1; the inference intents (add-types/add-error-handling/async-await) route to a model. -->
+
+| Tier | Handler | Cost | Use Cases |
+|------|---------|------|-----------|
+| **1** | Deterministic edit (you apply via Edit) | $0 | Deterministic structural edits — `var-to-const`, `remove-console`, `add-logging` |
+| **2** | Haiku | $0.0002 | Simple tasks, bug fixes, low complexity; also `add-types` / `add-error-handling` / `async-await` |
+| **3** | Sonnet/Opus | $0.003-$0.015 | Architecture, security, complex reasoning |
 
 **Before spawning agents, get routing recommendation:**
 ```bash
@@ -34,8 +36,8 @@ npx @claude-flow/cli@latest hooks pre-task --description "[task description]"
 
 **When you see these recommendations:**
 
-1. `[AGENT_BOOSTER_AVAILABLE]` → Skip LLM entirely, use Edit tool directly
-   - Intent types: `var-to-const`, `add-types`, `add-error-handling`, `async-await`, `add-logging`, `remove-console`
+1. `[DETERMINISTIC_EDIT]` → Apply the change yourself via the Edit tool — no LLM, no model cost
+   - Intent types: `var-to-const`, `remove-console`, `add-logging`
 
 2. `[TASK_MODEL_RECOMMENDATION] Use model="X"` → Use that model in Task tool:
 ```javascript
@@ -46,7 +48,7 @@ Task({
 })
 ```
 
-**Benefits:** 75% cost reduction, 352x faster for Tier 1 tasks
+**Benefits:** routes simple work to cheaper models and keeps deterministic structural edits off the LLM entirely
 
 ---
 

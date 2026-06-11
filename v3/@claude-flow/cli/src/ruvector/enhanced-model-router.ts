@@ -1,10 +1,19 @@
 /**
- * Enhanced Model Router with Agent Booster AST Integration
+ * Enhanced Model Router with deterministic-edit fast path
  *
  * Implements ADR-026: 3-tier intelligent model routing:
- * - Tier 1: Agent Booster (WASM) - <1ms, $0 for simple transforms
+ * - Tier 1: deterministic structural edits (var-to-const, remove-console,
+ *   add-logging) — no LLM needed; the human applies them via the Edit tool
+ *   at no model cost.
  * - Tier 2: Haiku - ~500ms for low complexity
  * - Tier 3: Sonnet/Opus - 2-5s for high complexity
+ *
+ * ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the fork ships
+ * NO code-transform executor, so Tier-1 is an honest "apply this small edit
+ * yourself" recommendation — not a WASM/$0/352x "Agent Booster" that runs the
+ * edit. Only the three genuinely-deterministic structural intents short-circuit
+ * to Tier-1; the inference intents (add-types, add-error-handling, async-await)
+ * fall through to normal model routing because they need an LLM.
  *
  * @module enhanced-model-router
  */
@@ -27,6 +36,29 @@ export type EditIntentType =
   | 'async-await'
   | 'add-logging'
   | 'remove-console';
+
+/**
+ * The genuinely-deterministic structural edits — pure syntactic rewrites that
+ * need no inference and so can be applied by the human via the Edit tool at no
+ * model cost. The remaining intents (add-types, add-error-handling, async-await)
+ * require inference and MUST route to a model.
+ *
+ * ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): only these three
+ * may short-circuit to Tier-1; advertising Tier-1/$0 for the inference intents
+ * was a false honesty claim (ADR-0172 class).
+ */
+const DETERMINISTIC_INTENTS: ReadonlySet<EditIntentType> = new Set([
+  'var-to-const',
+  'remove-console',
+  'add-logging',
+]);
+
+/**
+ * Whether an edit intent is a deterministic structural rewrite (no LLM needed).
+ */
+export function isDeterministicIntent(type: EditIntentType): boolean {
+  return DETERMINISTIC_INTENTS.has(type);
+}
 
 /**
  * Detected edit intent from task analysis
@@ -229,12 +261,18 @@ const LANGUAGE_MAP: Record<string, string> = {
 // ============================================================================
 
 /**
- * Enhanced Model Router with Agent Booster AST integration
+ * Enhanced Model Router with a deterministic-edit fast path
  *
  * Provides intelligent 3-tier routing:
- * - Tier 1: Agent Booster for simple code transforms (352x faster, $0)
+ * - Tier 1: deterministic structural edits (var-to-const, remove-console,
+ *   add-logging) the human applies via the Edit tool at no model cost
  * - Tier 2: Haiku for low complexity tasks
  * - Tier 3: Sonnet/Opus for complex reasoning tasks
+ *
+ * ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the
+ * `handler: 'agent-booster'` literal on a Tier-1 result is retained for
+ * downstream type-union/telemetry stability; it denotes the deterministic-edit
+ * path, NOT a WASM executor (the fork ships none).
  */
 export class EnhancedModelRouter {
   private config: EnhancedModelRouterConfig;
@@ -352,16 +390,26 @@ export class EnhancedModelRouter {
    * Route a task to the optimal tier and handler
    */
   async route(task: string, context?: { filePath?: string }): Promise<EnhancedRouteResult> {
-    // Step 1: Try Agent Booster intent detection
+    // Step 1: Deterministic-edit fast path.
+    // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): only the three
+    // genuinely-deterministic structural intents may short-circuit to Tier-1 (a
+    // human-applied Edit at no model cost). The inference intents (add-types,
+    // add-error-handling, async-await) are still detected — to keep the routing
+    // signal — but fall through to normal model routing below, since they need
+    // an LLM. Advertising Tier-1/$0 for them was a false honesty claim.
     if (this.config.agentBoosterEnabled) {
       const intent = this.detectIntent(task);
 
-      if (intent && intent.confidence >= this.config.agentBoosterConfidenceThreshold) {
+      if (
+        intent &&
+        intent.confidence >= this.config.agentBoosterConfidenceThreshold &&
+        isDeterministicIntent(intent.type)
+      ) {
         return {
           tier: 1,
           handler: 'agent-booster',
           confidence: intent.confidence,
-          reasoning: `Agent Booster can handle "${intent.type}" with ${(intent.confidence * 100).toFixed(0)}% confidence`,
+          reasoning: `Deterministic structural edit "${intent.type}" (${(intent.confidence * 100).toFixed(0)}% confidence) — apply via Edit; no model needed`,
           agentBoosterIntent: intent,
           canSkipLLM: true,
           estimatedLatencyMs: 1,
@@ -493,110 +541,13 @@ export class EnhancedModelRouter {
     }
   }
 
-  /**
-   * Execute task using the appropriate tier
-   * Returns the result and routing information
-   */
-  async execute(
-    task: string,
-    context?: { filePath?: string; originalCode?: string }
-  ): Promise<{
-    result: string | { applied: boolean; confidence: number };
-    routeResult: EnhancedRouteResult;
-  }> {
-    const routeResult = await this.route(task, context);
-
-    if (routeResult.tier === 1 && routeResult.agentBoosterIntent) {
-      // Try to execute with Agent Booster
-      const abResult = await this.tryAgentBooster(routeResult.agentBoosterIntent, context);
-
-      if (abResult.success) {
-        return {
-          result: { applied: true, confidence: abResult.confidence },
-          routeResult,
-        };
-      }
-
-      // Agent Booster failed, fall back to LLM
-      routeResult.tier = 2;
-      routeResult.handler = 'sonnet';
-      routeResult.model = 'sonnet';
-      routeResult.canSkipLLM = false;
-      routeResult.reasoning += ' (Agent Booster fallback to LLM)';
-    }
-
-    // Return routing result - caller handles LLM invocation
-    return { result: routeResult.reasoning, routeResult };
-  }
-
-  /**
-   * Try to apply edit using Agent Booster
-   */
-  private async tryAgentBooster(
-    intent: EditIntent,
-    context?: { filePath?: string; originalCode?: string }
-  ): Promise<{ success: boolean; confidence: number; output?: string }> {
-    try {
-      const filePath = intent.filePath || context?.filePath;
-      if (!filePath || !existsSync(filePath)) {
-        return { success: false, confidence: 0 };
-      }
-
-      const originalCode = context?.originalCode || readFileSync(filePath, 'utf-8');
-
-      const intentToInstruction: Record<EditIntentType, string> = {
-        'var-to-const': 'Convert all var declarations to const',
-        'add-types': 'Add TypeScript type annotations',
-        'add-error-handling': 'Wrap in try/catch blocks',
-        'async-await': 'Convert to async/await',
-        'add-logging': 'Add console.log statements',
-        'remove-console': 'Remove all console.* statements',
-      };
-
-      const instruction = intentToInstruction[intent.type];
-      const language = intent.language || 'javascript';
-
-      // Try local agentic-flow agent-booster (v3 — no npx needed)
-      // Note: agent-booster export declared but dist missing in alpha.1; use intelligence path as fallback
-      const boosterModule = await import('agentic-flow/agent-booster')
-        .catch(() => import(/* @vite-ignore */ 'agentic-flow/intelligence/agent-booster-enhanced'))
-        .catch(() => null);
-      if (boosterModule?.enhancedApply) {
-        const result = await boosterModule.enhancedApply({
-          code: originalCode,
-          edit: instruction,
-          language,
-        });
-        if (result && result.confidence >= this.config.agentBoosterConfidenceThreshold) {
-          return { success: true, confidence: result.confidence, output: result.output };
-        }
-        return { success: false, confidence: result?.confidence ?? 0 };
-      }
-
-      // Fallback: shell out to npx agent-booster
-      // Sanitize language to prevent command injection (whitelist only)
-      const SAFE_LANGUAGES = ['javascript', 'typescript', 'python', 'rust', 'go', 'java', 'c', 'cpp', 'ruby', 'swift', 'kotlin'];
-      const safeLang = SAFE_LANGUAGES.includes(language) ? language : 'javascript';
-      const { execSync } = await import('child_process');
-      const cmd = `npx --yes agent-booster@0.2.2 apply --language ${safeLang}`;
-      const result = execSync(cmd, {
-        encoding: 'utf-8',
-        input: JSON.stringify({ code: originalCode, edit: instruction }),
-        maxBuffer: 10 * 1024 * 1024,
-        timeout: 5000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      const parsed = JSON.parse(result);
-      if (parsed.confidence >= this.config.agentBoosterConfidenceThreshold) {
-        return { success: true, confidence: parsed.confidence, output: parsed.output };
-      }
-      return { success: false, confidence: parsed.confidence ?? 0 };
-    } catch {
-      // Agent Booster not available or failed
-      return { success: false, confidence: 0 };
-    }
-  }
+  // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the former
+  // execute() + tryAgentBooster() pair was dead code — zero production callers
+  // (route() is the live path) — and imported a non-resolving
+  // `agentic-flow/agent-booster` executor the fork does not ship. Deleted to
+  // remove the false "WASM runs the edit" capability; Tier-1 results are
+  // recommendations the caller applies via the Edit tool. Do NOT port upstream's
+  // TS-compiler codemod engine here (tracked separately).
 
   /**
    * Get router statistics
