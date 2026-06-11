@@ -1,26 +1,47 @@
 /**
- * Enhanced Model Router with deterministic-edit fast path
+ * Enhanced Model Router with deterministic-codemod fast path
  *
  * Implements ADR-026: 3-tier intelligent model routing:
- * - Tier 1: deterministic structural edits (var-to-const, remove-console,
- *   add-logging) — no LLM needed; the human applies them via the Edit tool
- *   at no model cost.
+ * - Tier 1: deterministic structural codemods (var-to-const, remove-console,
+ *   add-logging) — no LLM needed; applied in-process by the TypeScript-compiler
+ *   codemod engine at $0.
  * - Tier 2: Haiku - ~500ms for low complexity
  * - Tier 3: Sonnet/Opus - 2-5s for high complexity
  *
- * ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the fork ships
- * NO code-transform executor, so Tier-1 is an honest "apply this small edit
- * yourself" recommendation — not a WASM/$0/352x "Agent Booster" that runs the
- * edit. Only the three genuinely-deterministic structural intents short-circuit
- * to Tier-1; the inference intents (add-types, add-error-handling, async-await)
- * fall through to normal model routing because they need an LLM.
+ * ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): at the time the
+ * fork shipped NO code-transform executor, so Tier-1 was an honest "apply this
+ * small edit yourself" recommendation — not a WASM/$0/352x "Agent Booster" that
+ * runs the edit.
+ *
+ * ADR-0322 (Batch-U deferred fix B, hand-port of upstream 0988d92ce/ADR-143):
+ * the deterministic codemod engine (src/ruvector/codemods/) is now ported, so
+ * Tier-1 for the three genuinely-deterministic structural intents is genuinely
+ * executable — the engine performs the edit at $0/no-LLM. `route()` runs a
+ * route-time dry-run so Tier-1 only fires when the edit would really change the
+ * file (upstream's gating); `execute()` applies it. The inference intents
+ * (add-types, add-error-handling, async-await) still honestly route to a model
+ * because they need an LLM — the honest framing is unchanged for anything the
+ * engine cannot do.
  *
  * @module enhanced-model-router
  */
 
-import { existsSync, readFileSync } from 'fs';
-import { extname } from 'path';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { extname, isAbsolute, resolve as resolvePath } from 'path';
 import { ClaudeModel, getModelRouter, ModelRouter, ModelRoutingResult } from './model-router.js';
+// ADR-0322: in-process, $0/no-LLM deterministic codemod engine (no embeddings /
+// ONNX / RVF — no ADR-0068 mpnet conflict). Makes Tier-1 genuinely executable.
+import { applyCodemod, isDeterministicCodemod, type CodemodLanguage } from './codemods/engine.js';
+
+/** Map a file path to the codemod engine's language, falling back to a hint. */
+function codemodLanguageFor(filePath: string, fallback?: string): CodemodLanguage {
+  const ext = extname(filePath).toLowerCase();
+  if (ext === '.tsx') return 'tsx';
+  if (ext === '.jsx') return 'jsx';
+  if (ext === '.ts' || ext === '.mts' || ext === '.cts') return 'typescript';
+  if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return 'javascript';
+  return fallback === 'typescript' ? 'typescript' : 'javascript';
+}
 
 // ============================================================================
 // Types
@@ -38,26 +59,19 @@ export type EditIntentType =
   | 'remove-console';
 
 /**
- * The genuinely-deterministic structural edits — pure syntactic rewrites that
- * need no inference and so can be applied by the human via the Edit tool at no
- * model cost. The remaining intents (add-types, add-error-handling, async-await)
- * require inference and MUST route to a model.
+ * Whether an edit intent is a deterministic structural rewrite the codemod
+ * engine can apply with no inference (var-to-const, remove-console, add-logging).
+ * The remaining intents (add-types, add-error-handling, async-await) require
+ * inference and MUST route to a model.
  *
- * ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): only these three
- * may short-circuit to Tier-1; advertising Tier-1/$0 for the inference intents
- * was a false honesty claim (ADR-0172 class).
- */
-const DETERMINISTIC_INTENTS: ReadonlySet<EditIntentType> = new Set([
-  'var-to-const',
-  'remove-console',
-  'add-logging',
-]);
-
-/**
- * Whether an edit intent is a deterministic structural rewrite (no LLM needed).
+ * ADR-0322 (Batch-U deferred fix B, hand-port of upstream 0988d92ce/ADR-143):
+ * the canonical deterministic-intent list now lives in the codemod engine
+ * (DETERMINISTIC_CODEMOD_INTENTS); this is a thin back-compat wrapper that
+ * delegates to {@link isDeterministicCodemod} so there is one source of truth.
+ * Public name retained from ADR-0319 for caller stability.
  */
 export function isDeterministicIntent(type: EditIntentType): boolean {
-  return DETERMINISTIC_INTENTS.has(type);
+  return isDeterministicCodemod(type);
 }
 
 /**
@@ -72,16 +86,29 @@ export interface EditIntent {
 }
 
 /**
- * Enhanced routing result with Agent Booster support
+ * Enhanced routing result.
+ *
+ * ADR-0322: Tier-1 results now carry `handler: 'codemod'` and `deterministic`
+ * because the codemod engine genuinely applies the edit ($0, no LLM). The
+ * legacy `'agent-booster'` handler literal and `agentBoosterIntent` field are
+ * retained for downstream type-union / telemetry stability.
  */
 export interface EnhancedRouteResult {
   tier: 1 | 2 | 3;
-  handler: 'agent-booster' | 'haiku' | 'sonnet' | 'opus';
+  handler: 'codemod' | 'agent-booster' | 'haiku' | 'sonnet' | 'opus';
   model?: ClaudeModel;
   confidence: number;
   complexity?: number;
   reasoning: string;
+  /** The detected edit intent (Tier 1 only). */
+  codemodIntent?: EditIntent;
+  /**
+   * Back-compat alias for {@link codemodIntent}. Older callers read this field.
+   * @deprecated use {@link codemodIntent}
+   */
   agentBoosterIntent?: EditIntent;
+  /** true when a deterministic, $0 codemod can fully apply this edit (no LLM). */
+  deterministic?: boolean;
   canSkipLLM?: boolean;
   estimatedLatencyMs: number;
   estimatedCost: number;
@@ -261,18 +288,19 @@ const LANGUAGE_MAP: Record<string, string> = {
 // ============================================================================
 
 /**
- * Enhanced Model Router with a deterministic-edit fast path
+ * Enhanced Model Router with a deterministic-codemod fast path
  *
  * Provides intelligent 3-tier routing:
- * - Tier 1: deterministic structural edits (var-to-const, remove-console,
- *   add-logging) the human applies via the Edit tool at no model cost
+ * - Tier 1: deterministic structural codemods (var-to-const, remove-console,
+ *   add-logging) applied in-process by the codemod engine at $0, no LLM
  * - Tier 2: Haiku for low complexity tasks
  * - Tier 3: Sonnet/Opus for complex reasoning tasks
  *
- * ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the
- * `handler: 'agent-booster'` literal on a Tier-1 result is retained for
- * downstream type-union/telemetry stability; it denotes the deterministic-edit
- * path, NOT a WASM executor (the fork ships none).
+ * ADR-0322 (Batch-U deferred fix B, hand-port of upstream 0988d92ce/ADR-143):
+ * Tier-1 emits `handler: 'codemod'` and is genuinely executable via the
+ * TypeScript-compiler codemod engine — no WASM, no subprocess, no model. The
+ * legacy `'agent-booster'` handler literal remains in the union for downstream
+ * type/telemetry stability only.
  */
 export class EnhancedModelRouter {
   private config: EnhancedModelRouterConfig;
@@ -390,31 +418,62 @@ export class EnhancedModelRouter {
    * Route a task to the optimal tier and handler
    */
   async route(task: string, context?: { filePath?: string }): Promise<EnhancedRouteResult> {
-    // Step 1: Deterministic-edit fast path.
-    // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): only the three
-    // genuinely-deterministic structural intents may short-circuit to Tier-1 (a
-    // human-applied Edit at no model cost). The inference intents (add-types,
-    // add-error-handling, async-await) are still detected — to keep the routing
-    // signal — but fall through to normal model routing below, since they need
-    // an LLM. Advertising Tier-1/$0 for them was a false honesty claim.
+    // Step 1: Deterministic codemod fast path.
+    // ADR-0322 (Batch-U deferred fix B, hand-port of upstream 0988d92ce/ADR-143):
+    // only the three genuinely-deterministic structural intents may short-circuit
+    // to Tier-1, where the codemod engine applies the edit in-process at $0/no-LLM.
+    // The inference intents (add-types, add-error-handling, async-await) are still
+    // detected — to keep the routing signal — but fall through to normal model
+    // routing below, since they need an LLM (honest framing unchanged for them).
     if (this.config.agentBoosterEnabled) {
       const intent = this.detectIntent(task);
 
       if (
         intent &&
         intent.confidence >= this.config.agentBoosterConfidenceThreshold &&
-        isDeterministicIntent(intent.type)
+        isDeterministicCodemod(intent.type)
       ) {
-        return {
-          tier: 1,
-          handler: 'agent-booster',
-          confidence: intent.confidence,
-          reasoning: `Deterministic structural edit "${intent.type}" (${(intent.confidence * 100).toFixed(0)}% confidence) — apply via Edit; no model needed`,
-          agentBoosterIntent: intent,
-          canSkipLLM: true,
-          estimatedLatencyMs: 1,
-          estimatedCost: 0,
-        };
+        // Route-time dry-run (ADR-143 #3): when a target file is known, only
+        // claim Tier-1 if the codemod actually changes something. This avoids
+        // recommending Tier-1 for no-ops (e.g. "remove console" on a file with
+        // no console calls). With no file to check, recommend Tier-1 best-effort
+        // — execute() verifies before writing. Prefer the caller-provided path
+        // (authoritative, usually absolute) over the path heuristically extracted
+        // from the task text; resolve relatives against cwd.
+        const fpRaw = context?.filePath || intent.filePath;
+        const fp = fpRaw ? (isAbsolute(fpRaw) ? fpRaw : resolvePath(process.cwd(), fpRaw)) : undefined;
+        let tier1 = true;
+        let edits: number | undefined;
+        if (fp && existsSync(fp)) {
+          try {
+            const code = readFileSync(fp, 'utf-8');
+            const res = applyCodemod(intent.type, code, { language: codemodLanguageFor(fp, intent.language) });
+            if (res.success && res.changed) {
+              edits = res.edits;
+            } else {
+              tier1 = false; // verified no-op / can't apply → fall through to model routing
+            }
+          } catch {
+            // read error → leave best-effort Tier-1 (execute() will verify)
+          }
+        }
+
+        if (tier1) {
+          const editsNote = edits !== undefined ? ` (${edits} edit${edits === 1 ? '' : 's'})` : '';
+          return {
+            tier: 1,
+            handler: 'codemod',
+            confidence: intent.confidence,
+            reasoning: `Deterministic codemod can apply "${intent.type}" with ${(intent.confidence * 100).toFixed(0)}% confidence — $0, no LLM${editsNote}`,
+            codemodIntent: intent,
+            agentBoosterIntent: intent,
+            deterministic: true,
+            canSkipLLM: true,
+            estimatedLatencyMs: 1,
+            estimatedCost: 0,
+          };
+        }
+        // verified no-op: fall through to model routing below
       }
     }
 
@@ -541,13 +600,81 @@ export class EnhancedModelRouter {
     }
   }
 
-  // ADR-0319 (Batch-U follow-up of upstream 0988d92ce/ADR-143): the former
-  // execute() + tryAgentBooster() pair was dead code — zero production callers
-  // (route() is the live path) — and imported a non-resolving
-  // `agentic-flow/agent-booster` executor the fork does not ship. Deleted to
-  // remove the false "WASM runs the edit" capability; Tier-1 results are
-  // recommendations the caller applies via the Edit tool. Do NOT port upstream's
-  // TS-compiler codemod engine here (tracked separately).
+  /**
+   * Execute a task using the appropriate tier.
+   *
+   * ADR-0322 (Batch-U deferred fix B, hand-port of upstream 0988d92ce/ADR-143):
+   * the former execute()/tryAgentBooster() pair was deleted in ADR-0319 because
+   * it imported a non-resolving `agentic-flow/agent-booster` executor and made a
+   * false "WASM runs the edit" claim. This re-introduces a REAL executor backed
+   * by the in-process TypeScript-compiler codemod engine — no subprocess, no LLM.
+   *
+   * For Tier-1 deterministic intents this applies the codemod directly (writing
+   * the file back when a path is given) — $0, no LLM. Otherwise it returns the
+   * routing result and the caller invokes the recommended model.
+   */
+  async execute(
+    task: string,
+    context?: { filePath?: string; originalCode?: string }
+  ): Promise<{
+    result: string | { applied: boolean; changed: boolean; edits: number };
+    routeResult: EnhancedRouteResult;
+  }> {
+    const routeResult = await this.route(task, context);
+    const intent = routeResult.codemodIntent ?? routeResult.agentBoosterIntent;
+
+    if (routeResult.tier === 1 && routeResult.deterministic && intent) {
+      const cm = this.tryCodemod(intent, context);
+
+      if (cm.success) {
+        return {
+          result: { applied: true, changed: cm.changed, edits: cm.edits },
+          routeResult,
+        };
+      }
+
+      // Codemod could not apply (no file / parse issue) — fall back to a model.
+      routeResult.tier = 2;
+      routeResult.handler = 'sonnet';
+      routeResult.model = 'sonnet';
+      routeResult.deterministic = false;
+      routeResult.canSkipLLM = false;
+      routeResult.reasoning += ' (codemod fallback to LLM)';
+    }
+
+    // Return routing result - caller handles LLM invocation
+    return { result: routeResult.reasoning, routeResult };
+  }
+
+  /**
+   * Apply a deterministic codemod to the intent's target file.
+   *
+   * This is the real Tier-1 execution path (ADR-0322 / ADR-143). It uses the
+   * in-process TypeScript-compiler codemod engine — no `agent-booster` import,
+   * no subprocess, no LLM. Writes the transformed source back to disk when it
+   * changes (skipped when `originalCode` is supplied, i.e. a pure dry-run).
+   */
+  private tryCodemod(
+    intent: EditIntent,
+    context?: { filePath?: string; originalCode?: string }
+  ): { success: boolean; changed: boolean; edits: number } {
+    const filePath = intent.filePath || context?.filePath;
+    if (!filePath || !existsSync(filePath)) {
+      return { success: false, changed: false, edits: 0 };
+    }
+
+    const originalCode = context?.originalCode ?? readFileSync(filePath, 'utf-8');
+    const language = codemodLanguageFor(filePath, intent.language);
+    const result = applyCodemod(intent.type, originalCode, { language });
+
+    if (!result.success) {
+      return { success: false, changed: false, edits: 0 };
+    }
+    if (result.changed && !context?.originalCode) {
+      writeFileSync(filePath, result.output, 'utf-8');
+    }
+    return { success: true, changed: result.changed, edits: result.edits };
+  }
 
   /**
    * Get router statistics
@@ -616,18 +743,26 @@ export async function enhancedRouteToModel(
 }
 
 /**
- * Detect if a task can be handled by Agent Booster
+ * Detect if a task can be applied by a deterministic, $0 codemod (ADR-0322 /
+ * ADR-143). Only the deterministic intents qualify — others need a model, so
+ * (unlike the pre-ADR-0322 version) this now gates on isDeterministicCodemod to
+ * avoid claiming a $0 path for intents the engine cannot execute.
  */
-export function canUseAgentBooster(task: string): {
+export function canUseCodemod(task: string): {
   canUse: boolean;
   intent?: EditIntent;
 } {
   const router = getEnhancedModelRouter();
   const intent = router.detectIntent(task);
 
-  if (intent && intent.confidence >= 0.7) {
+  if (intent && intent.confidence >= 0.7 && isDeterministicCodemod(intent.type)) {
     return { canUse: true, intent };
   }
 
   return { canUse: false };
 }
+
+/**
+ * @deprecated Agent Booster never performed these transforms. Use {@link canUseCodemod}.
+ */
+export const canUseAgentBooster = canUseCodemod;
