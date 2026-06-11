@@ -1042,7 +1042,21 @@ async function spawnClaudeCodeInstance(
       output.printInfo('The Queen coordinator will orchestrate all worker agents');
       output.writeln(output.dim(`Prompt file saved at: ${promptFile}`));
 
-      return { success: true, promptFile };
+      // #2297 (upstream eaaf59d1b): await child exit before returning. Without
+      // this, the CLI process resolves immediately, finishes, and the
+      // still-initializing `claude` child loses its controlling terminal and is
+      // killed mid-launch — visible as a stray XTVERSION reply leaking onto the
+      // next shell prompt (the terminal queried for capabilities, but the child
+      // died before reading the answer). Awaiting also makes the existing
+      // claudeProcess.on('exit', ...) log lines actually print, and lets the
+      // non-interactive (-p / --non-interactive) path complete only after Claude
+      // Code finishes.
+      const claudeExitCode = await new Promise<number>((resolve) => {
+        claudeProcess.on('exit', (c) => resolve(c ?? 0));
+        claudeProcess.on('error', () => resolve(1));
+      });
+
+      return { success: claudeExitCode === 0, promptFile };
     } else if (dryRun) {
       output.writeln();
       output.printInfo('Dry run - would execute Claude Code with prompt:');

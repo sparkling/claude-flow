@@ -87,6 +87,20 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const SESSION_DIR = path.join(PROJECT_ROOT, '.claude-flow', 'sessions');
 const SESSION_FILE = path.join(SESSION_DIR, 'current.json');
 
+// #2307 (upstream eaaf59d1b): atomic write — serialize to a per-process temp
+// file, then rename() into place. rename() is atomic on the same filesystem, so
+// concurrent writers (session-restore, metric, daemon workers, teammates) can't
+// interleave partial content. Without this, two non-atomic writeFileSync calls
+// can race so a shorter payload overwrites a longer one in place, leaving the
+// longer payload's tail dangling past the end (valid JSON + trailing garbage =
+// parse error). Temp name includes process.pid so concurrent writers don't
+// collide on it. Same idiom the fork already uses for the RVF path below.
+function atomicWrite(file, data) {
+  const tmp = \`\${file}.\${process.pid}.tmp\`;
+  fs.writeFileSync(tmp, data);
+  fs.renameSync(tmp, file);
+}
+
 const commands = {
   start: () => {
     const sessionId = \`session-\${Date.now()}\`;
@@ -104,7 +118,7 @@ const commands = {
     };
 
     fs.mkdirSync(SESSION_DIR, { recursive: true });
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
+    atomicWrite(SESSION_FILE, JSON.stringify(session, null, 2));
 
     console.log(\`Session started: \${sessionId}\`);
     return session;
@@ -116,9 +130,17 @@ const commands = {
       return null;
     }
 
-    const session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+    // #2307: corrupted session file (e.g. from a pre-atomic-write race).
+    // Don't throw — start a fresh session so the hook recovers cleanly.
+    let session;
+    try {
+      session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+    } catch (e) {
+      console.log(\`Session file corrupted (\${e.message}); starting fresh\`);
+      return commands.start();
+    }
     session.restoredAt = new Date().toISOString();
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
+    atomicWrite(SESSION_FILE, JSON.stringify(session, null, 2));
 
     console.log(\`Session restored: \${session.id}\`);
     return session;
@@ -136,7 +158,7 @@ const commands = {
 
     // Archive session
     const archivePath = path.join(SESSION_DIR, \`\${session.id}.json\`);
-    fs.writeFileSync(archivePath, JSON.stringify(session, null, 2));
+    atomicWrite(archivePath, JSON.stringify(session, null, 2));
     fs.unlinkSync(SESSION_FILE);
 
     console.log(\`Session ended: \${session.id}\`);
@@ -172,7 +194,7 @@ const commands = {
     const session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
     session.context[key] = value;
     session.updatedAt = new Date().toISOString();
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
+    atomicWrite(SESSION_FILE, JSON.stringify(session, null, 2));
 
     return session;
   },
@@ -185,7 +207,7 @@ const commands = {
     const session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
     if (session.metrics[name] !== undefined) {
       session.metrics[name]++;
-      fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
+      atomicWrite(SESSION_FILE, JSON.stringify(session, null, 2));
     }
 
     return session;
@@ -212,7 +234,17 @@ export function generateAgentRouter(): string {
   return `#!/usr/bin/env node
 /**
  * Ruflo Agent Router
- * Routes tasks to optimal agents based on learned patterns
+ *
+ * Static keyword router that suggests an agent for a task description.
+ * NOTE: This is *not* a learned model. It is a heuristic table; "confidence"
+ * is reported as a heuristic prior, not a calibrated probability.
+ *
+ * #2257 fix (upstream 4c0144371): patterns are now word-boundary-anchored so
+ * short tokens like \`cd\`, \`ci\`, \`ui\`, \`add\`, \`structure\` no longer match
+ * inside unrelated words (\`decision\`, \`infrastructure\`, \`address\`,
+ * \`addendum\`, \`specification\`). Matched-confidence dropped from 0.8 to 0.6,
+ * and fall-through from 0.5 to 0.3, to reflect that this is a static
+ * heuristic, not a learned classifier.
  */
 
 const AGENT_CAPABILITIES = {
@@ -226,55 +258,74 @@ const AGENT_CAPABILITIES = {
   devops: ['ci-cd', 'docker', 'deployment', 'infrastructure'],
 };
 
-const TASK_PATTERNS = {
-  // Code patterns
-  'implement|create|build|add|write code': 'coder',
-  'test|spec|coverage|unit test|integration': 'tester',
-  'review|audit|check|validate|security': 'reviewer',
-  'research|find|search|documentation|explore': 'researcher',
-  'design|architect|structure|plan': 'architect',
+// Each entry has a token list. Single tokens get \\b…\\b boundaries so 'cd'
+// won't match inside 'decide'. Phrases (whitespace or '/') match literally —
+// the whitespace acts as a natural boundary.
+const TASK_PATTERNS = [
+  { tokens: ['implement', 'create', 'build', 'add', 'write code', 'refactor', 'debug'], agent: 'coder' },
+  { tokens: ['test', 'tests', 'spec', 'coverage', 'unit test', 'integration test'], agent: 'tester' },
+  { tokens: ['review', 'audit', 'check', 'validate', 'security'], agent: 'reviewer' },
+  { tokens: ['research', 'find', 'search', 'documentation', 'explore'], agent: 'researcher' },
+  { tokens: ['design', 'architect', 'architecture', 'structure', 'plan'], agent: 'architect' },
+  { tokens: ['api', 'endpoint', 'server', 'backend', 'database'], agent: 'backend-dev' },
+  { tokens: ['ui', 'frontend', 'component', 'react', 'css', 'style'], agent: 'frontend-dev' },
+  { tokens: ['deploy', 'docker', 'ci', 'cd', 'ci/cd', 'pipeline', 'infrastructure', 'devops'], agent: 'devops' },
+];
 
-  // Domain patterns
-  'api|endpoint|server|backend|database': 'backend-dev',
-  'ui|frontend|component|react|css|style': 'frontend-dev',
-  'deploy|docker|ci|cd|pipeline|infrastructure': 'devops',
-};
+function escapeRegex(s) {
+  return s.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+}
+
+// Build an anchored alternation regex from a token list.
+//   - multi-word phrases (containing whitespace or '/') match literally
+//   - single tokens are wrapped with \\b boundaries so 'cd' won't match "decide"
+function buildPattern(tokens) {
+  const alternatives = tokens.map((tok) => {
+    const escaped = escapeRegex(tok.toLowerCase());
+    if (/\\s|\\//.test(tok)) return escaped;
+    return \`\\\\b\${escaped}\\\\b\`;
+  });
+  return new RegExp(\`(?:\${alternatives.join('|')})\`, 'i');
+}
+
+const COMPILED_PATTERNS = TASK_PATTERNS.map((entry) => ({
+  agent: entry.agent,
+  tokens: entry.tokens,
+  regex: buildPattern(entry.tokens),
+}));
 
 function routeTask(task) {
-  const taskLower = task.toLowerCase();
-
-  // Check patterns
-  for (const [pattern, agent] of Object.entries(TASK_PATTERNS)) {
-    const regex = new RegExp(pattern, 'i');
-    if (regex.test(taskLower)) {
+  const taskLower = String(task == null ? '' : task).toLowerCase();
+  for (const entry of COMPILED_PATTERNS) {
+    if (entry.regex.test(taskLower)) {
       return {
-        agent,
-        confidence: 0.8,
-        reason: \`Matched pattern: \${pattern}\`,
+        agent: entry.agent,
+        // Heuristic prior, not a learned probability — see file header.
+        confidence: 0.6,
+        reason: \`Matched keyword(s) from: \${entry.tokens.join('|')}\`,
       };
     }
   }
-
-  // Default to coder for unknown tasks
   return {
     agent: 'coder',
-    confidence: 0.5,
-    reason: 'Default routing - no specific pattern matched',
+    confidence: 0.3,
+    reason: 'Default routing - no specific keyword matched',
   };
 }
 
 // CLI
-const task = process.argv.slice(2).join(' ');
-
-if (task) {
-  const result = routeTask(task);
-  console.log(JSON.stringify(result, null, 2));
-} else {
-  console.log('Usage: router.js <task description>');
-  console.log('\\nAvailable agents:', Object.keys(AGENT_CAPABILITIES).join(', '));
+if (require.main === module) {
+  const task = process.argv.slice(2).join(' ');
+  if (task) {
+    const result = routeTask(task);
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log('Usage: router.js <task description>');
+    console.log('\\nAvailable agents:', Object.keys(AGENT_CAPABILITIES).join(', '));
+  }
 }
 
-module.exports = { routeTask, AGENT_CAPABILITIES, TASK_PATTERNS };
+module.exports = { routeTask, AGENT_CAPABILITIES, TASK_PATTERNS, buildPattern };
 `;
 }
 
@@ -1303,6 +1354,17 @@ function ensureDir(dir) {
   }
 }
 
+// #2307 (upstream eaaf59d1b): atomic write — serialize to a per-process temp
+// file, then rename() into place. rename() is atomic on the same filesystem, so
+// concurrent writers can't interleave partial content (a shorter payload
+// overwriting a longer one in place leaves a dangling tail = valid JSON +
+// trailing garbage = parse error). Temp name includes process.pid.
+function atomicWrite(file, data) {
+  const tmp = \`\${file}.\${process.pid}.tmp\`;
+  fs.writeFileSync(tmp, data);
+  fs.renameSync(tmp, file);
+}
+
 const commands = {
   start: () => {
     ensureDir(SESSION_DIR);
@@ -1315,7 +1377,7 @@ const commands = {
       context: {},
       metrics: { edits: 0, commands: 0, tasks: 0, errors: 0 }
     };
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
+    atomicWrite(SESSION_FILE, JSON.stringify(session, null, 2));
     console.log(\`Session started: \${sessionId}\`);
     return session;
   },
@@ -1325,9 +1387,16 @@ const commands = {
       console.log('No session to restore');
       return null;
     }
-    const session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+    // #2307: corrupted session file self-heals — start fresh instead of throwing.
+    let session;
+    try {
+      session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+    } catch (e) {
+      console.log(\`Session file corrupted (\${e.message}); starting fresh\`);
+      return commands.start();
+    }
     session.restoredAt = new Date().toISOString();
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2));
+    atomicWrite(SESSION_FILE, JSON.stringify(session, null, 2));
     console.log(\`Session restored: \${session.id}\`);
     return session;
   },
@@ -1342,7 +1411,7 @@ const commands = {
     session.duration = Date.now() - new Date(session.startedAt).getTime();
 
     const archivePath = path.join(SESSION_DIR, \`\${session.id}.json\`);
-    fs.writeFileSync(archivePath, JSON.stringify(session, null, 2));
+    atomicWrite(archivePath, JSON.stringify(session, null, 2));
     fs.unlinkSync(SESSION_FILE);
 
     console.log(\`Session ended: \${session.id}\`);

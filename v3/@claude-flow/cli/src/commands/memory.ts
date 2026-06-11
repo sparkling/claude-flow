@@ -1541,7 +1541,22 @@ const initMemoryCommand: Command = {
       // ADR-0156: pull dbPath from the resolved router state instead of
       // the previous hardcoded '.swarm/memory.db' lie. customPath flag
       // overrides; absent that, the router's resolved path wins.
-      const resolvedDbPath = customPath || getActiveBackendPath() || '(unresolved)';
+      // #2105 (upstream 427308308): when the user expressed an explicit path
+      // intent (--path or RUFLO_DB_PATH / back-compat CLAUDE_FLOW_DB_PATH),
+      // display it via the shared three-tier helper so the shown path matches
+      // the env tier resolve-config.ts now applies to the actual storage path.
+      // With no explicit intent, keep the absolute router-resolved path.
+      let resolvedDbPath = getActiveBackendPath() || '(unresolved)';
+      const _envDbIntent = process.env.RUFLO_DB_PATH ?? process.env.CLAUDE_FLOW_DB_PATH;
+      if (customPath || (_envDbIntent && _envDbIntent.trim().length > 0)) {
+        try {
+          const { resolveDbPath } = await import('@claude-flow/memory');
+          resolvedDbPath = resolveDbPath(customPath);
+        } catch {
+          // Helper unavailable (older bundled memory pkg) — explicit flag wins.
+          resolvedDbPath = customPath || resolvedDbPath;
+        }
+      }
 
       // ADR-0156: removed fabricated `success`, `tablesCreated`,
       // `indexesCreated` fields. `success` is now implicit — if we

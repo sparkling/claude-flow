@@ -280,7 +280,11 @@ async function doImport() {
   await backend.initialize();
 
   const bridgeConfig = {
-    workingDir: PROJECT_ROOT,
+    // #2284 (upstream facec4ccc): use Claude Code's invocation cwd (the user's
+    // project), not PROJECT_ROOT — PROJECT_ROOT resolves to the plugin clone
+    // when this hook runs from ~/.claude/plugins/marketplaces/ruflo/. Fork
+    // rebrand: RUFLO_CWD primary, CLAUDE_FLOW_CWD back-compat fallback.
+    workingDir: process.env.RUFLO_CWD || process.env.CLAUDE_FLOW_CWD || process.cwd(),
     syncMode: config.syncMode || 'on-session-end',
   };
 
@@ -370,7 +374,11 @@ async function doSync() {
   }
 
   const bridgeConfig = {
-    workingDir: PROJECT_ROOT,
+    // #2284 (upstream facec4ccc): use Claude Code's invocation cwd (the user's
+    // project), not PROJECT_ROOT — PROJECT_ROOT resolves to the plugin clone
+    // when this hook runs from ~/.claude/plugins/marketplaces/ruflo/. Fork
+    // rebrand: RUFLO_CWD primary, CLAUDE_FLOW_CWD back-compat fallback.
+    workingDir: process.env.RUFLO_CWD || process.env.CLAUDE_FLOW_CWD || process.cwd(),
     syncMode: config.syncMode || 'on-session-end',
   };
 

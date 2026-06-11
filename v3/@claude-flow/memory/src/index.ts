@@ -207,7 +207,7 @@ export { RvfCorruptError } from './rvf-backend.js';
 export { HNSWIndex } from './hnsw-index.js';
 export { deriveHNSWParams } from './hnsw-utils.js';
 export type { HNSWParams } from './hnsw-utils.js';
-export { resolveConfig, getConfig, resetConfig } from './resolve-config.js';
+export { resolveConfig, getConfig, resetConfig, resolveDbPath } from './resolve-config.js';
 export type { ResolvedConfig, ConfigOverrides } from './resolve-config.js';
 export {
   EmbeddingPipeline,

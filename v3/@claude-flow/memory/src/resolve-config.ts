@@ -17,7 +17,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve as resolvePath } from 'node:path';
 import { findProjectRoot } from '@claude-flow/shared/fs';
 import { getEmbeddingConfig, resetConfig as resetChainConfig } from '@claude-flow/config-chain';
 import { deriveHNSWParams } from './hnsw-utils.js';
@@ -184,7 +184,15 @@ export function resolveConfig(overrides?: ConfigOverrides): ResolvedConfig {
 
   // Layer 4: hardcoded defaults for the non-embedding keys
   let storageProvider: 'rvf' | 'better-sqlite3' = DEFAULT_STORAGE_PROVIDER;
-  let databasePath: string = DEFAULT_DATABASE_PATH;
+  // #2105 (upstream 427308308): RUFLO_DB_PATH (back-compat: CLAUDE_FLOW_DB_PATH)
+  // env tier. Precedence: explicit override (--path on init/reset, Layer 1) >
+  // env var > embeddings.json databasePath > default root. We resolve env here
+  // and, when present, suppress the Layer-2 file-config databasePath below so
+  // an ad-hoc env override beats a committed config file (env is the more
+  // explicit, more local signal — mirrors upstream's "env beats default root").
+  const envDbPathRaw = process.env.RUFLO_DB_PATH ?? process.env.CLAUDE_FLOW_DB_PATH;
+  const envDbPath = envDbPathRaw && envDbPathRaw.trim().length > 0 ? envDbPathRaw.trim() : undefined;
+  let databasePath: string = envDbPath ?? DEFAULT_DATABASE_PATH;
   let walMode: boolean = DEFAULT_WAL_MODE;
   let autoPersistInterval: number = DEFAULT_AUTO_PERSIST_INTERVAL;
   let maxEntries: number = DEFAULT_MAX_ENTRIES;
@@ -211,7 +219,8 @@ export function resolveConfig(overrides?: ConfigOverrides): ResolvedConfig {
     if (typeof fileConfig.storageProvider === 'string') {
       storageProvider = fileConfig.storageProvider as 'rvf' | 'better-sqlite3';
     }
-    if (typeof fileConfig.databasePath === 'string') databasePath = fileConfig.databasePath;
+    // #2105: env-var databasePath (resolved above) outranks the file tier.
+    if (!envDbPath && typeof fileConfig.databasePath === 'string') databasePath = fileConfig.databasePath;
     if (typeof fileConfig.walMode === 'boolean') walMode = fileConfig.walMode;
     if (typeof fileConfig.autoPersistInterval === 'number') {
       autoPersistInterval = fileConfig.autoPersistInterval;
@@ -343,6 +352,31 @@ export function resolveConfig(overrides?: ConfigOverrides): ResolvedConfig {
 /** Return the cached config, calling resolveConfig() if not yet initialized. */
 export function getConfig(): ResolvedConfig {
   return _singleton ?? resolveConfig();
+}
+
+/**
+ * #2105 (upstream 427308308): resolve the memory database path with explicit
+ * three-tier precedence, for CLI callers (e.g. `memory --path`) that want a
+ * path without materialising a full ResolvedConfig.
+ *
+ * Precedence (highest to lowest):
+ *   1. cliFlag                            - explicit --path flag
+ *   2. RUFLO_DB_PATH / CLAUDE_FLOW_DB_PATH - env-var override (RUFLO_ primary)
+ *   3. resolveConfig().storage.databasePath - file config (embeddings.json) or
+ *                                             the default root, already resolved
+ *
+ * cliFlag and the env var are absolutised; the config tier is returned as-is
+ * (it is project-root-relative by design, e.g. `.claude-flow/memory.rvf`).
+ */
+export function resolveDbPath(cliFlag?: string): string {
+  if (cliFlag && cliFlag.trim().length > 0) {
+    return resolvePath(cliFlag.trim());
+  }
+  const envDb = process.env.RUFLO_DB_PATH ?? process.env.CLAUDE_FLOW_DB_PATH;
+  if (envDb && envDb.trim().length > 0) {
+    return resolvePath(envDb.trim());
+  }
+  return getConfig().storage.databasePath;
 }
 
 /** Reset the singleton (for testing only). Also resets the shared

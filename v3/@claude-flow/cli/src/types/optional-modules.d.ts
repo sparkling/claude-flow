@@ -229,6 +229,9 @@ declare module '@claude-flow/memory' {
     getActiveCount(): number;
     register(name: string, instance: any): void;
   }
+  // #2105 (Batch-U) — three-tier DB-path resolver (`--path` > RUFLO_DB_PATH /
+  // CLAUDE_FLOW_DB_PATH > config); consumed by `memory init` display.
+  export function resolveDbPath(cliFlag?: string): string;
 }
 
 declare module '@ruvector/rvagent-wasm' {
