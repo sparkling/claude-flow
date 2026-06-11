@@ -4752,7 +4752,7 @@ export const hooksModelStats: MCPTool = {
  */
 export const hooksIntelligenceUnifiedStats: MCPTool = {
   name: 'hooks_intelligence_unified-stats',
-  description: 'One honest view across the four learning stat sources: globalStats (`.claude-flow/neural/stats.json`), the in-memory SONA coordinator, memory-bridge AgentDB entries, and the neural-patterns store. Each sub-view names its source path. The `consistency` block notes cross-store drift (e.g. globalStats reports N patterns but neural_patterns is empty). Use this when one dashboard call should show "did learning happen" coherently — vs the four original aggregators which each return only their narrow slice. See ADR-0326.',
+  description: 'One honest view across the four learning stat sources: globalStats (`.claude-flow/neural/stats.json`), the in-memory SONA coordinator, the memory bridge's AgentDB entries (via routeMemoryOp), and the neural-patterns store. Each sub-view names its source path. The `consistency` block notes cross-store drift (e.g. globalStats reports N patterns but neural_patterns is empty). Use this when one dashboard call should show "did learning happen" coherently — vs the four original aggregators which each return only their narrow slice. See ADR-0326.',
   inputSchema: {
     type: 'object',
     properties: {
