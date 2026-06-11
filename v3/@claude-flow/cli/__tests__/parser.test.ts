@@ -48,6 +48,23 @@ describe('CommandParser', () => {
       expect(result.flags.color).toBe(false);
     });
 
+    it('should consume a space-form boolean literal --flag false (BugC, a73a2cbe3)', () => {
+      // The bug only manifests for a REGISTERED boolean option (booleanFlags has
+      // it): before the fix, `--explore false` forced true. All three negation
+      // forms must work. Regression for upstream a73a2cbe3 (Batch-U).
+      const cmd: Command = {
+        name: 'route',
+        description: 'route',
+        options: [{ name: 'explore', short: 'e', type: 'boolean', default: true, description: 'explore' }],
+      };
+      parser.registerCommand(cmd);
+      expect((parser.parse(['route', '--explore', 'false']).flags as any).explore).toBe(false);
+      expect((parser.parse(['route', '--explore', 'true']).flags as any).explore).toBe(true);
+      expect((parser.parse(['route', '-e', 'false']).flags as any).explore).toBe(false);
+      expect((parser.parse(['route', '--explore=false']).flags as any).explore).toBe(false); // = form unaffected
+      expect((parser.parse(['route', '--no-explore']).flags as any).explore).toBe(false);    // --no- unaffected
+    });
+
     it('should parse short flag -V via global alias', () => {
       const result = parser.parse(['-V']);
       expect(result.flags.version).toBe(true);

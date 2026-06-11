@@ -346,7 +346,16 @@ export class CommandParser {
         const normalizedKey = this.normalizeKey(key);
 
         if (booleanFlags.has(normalizedKey)) {
-          flags[normalizedKey] = true;
+          // BugC (vs upstream a73a2cbe3 #2229): consume an explicit space-form
+          // boolean literal so a default-true boolean (e.g. `--explore false`)
+          // can be disabled. `--explore=false` (above) and `--no-explore`
+          // (ADR-0316) already work; this adds only the space form.
+          if (nextIndex < args.length && this.isBooleanLiteral(args[nextIndex])) {
+            flags[normalizedKey] = args[nextIndex].toLowerCase() === 'true';
+            nextIndex++;
+          } else {
+            flags[normalizedKey] = true;
+          }
         } else if (nextIndex < args.length && !args[nextIndex].startsWith('-')) {
           flags[normalizedKey] = this.parseValue(args[nextIndex]);
           nextIndex++;
@@ -364,7 +373,13 @@ export class CommandParser {
         const normalizedKey = this.normalizeKey(key);
 
         if (booleanFlags.has(normalizedKey)) {
-          flags[normalizedKey] = true;
+          // BugC: short boolean flags also accept an explicit literal (`-e false`).
+          if (nextIndex < args.length && this.isBooleanLiteral(args[nextIndex])) {
+            flags[normalizedKey] = args[nextIndex].toLowerCase() === 'true';
+            nextIndex++;
+          } else {
+            flags[normalizedKey] = true;
+          }
         } else if (nextIndex < args.length && !args[nextIndex].startsWith('-')) {
           flags[normalizedKey] = this.parseValue(args[nextIndex]);
           nextIndex++;
@@ -381,6 +396,13 @@ export class CommandParser {
     }
 
     return { flags, nextIndex };
+  }
+
+  /** True for the literal tokens `true`/`false` (case-insensitive). Lets a
+   * boolean flag take an explicit value in the space form (`--explore false`). */
+  private isBooleanLiteral(arg: string): boolean {
+    const a = arg.toLowerCase();
+    return a === 'true' || a === 'false';
   }
 
   private parseValue(value: string): string | number | boolean {
