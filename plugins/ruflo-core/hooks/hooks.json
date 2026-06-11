@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/ruflo-hook.sh\" session-end || true"
+            "command": "/bin/bash -c '\"${CLAUDE_PLUGIN_ROOT}/scripts/ruflo-hook.sh\" session-end || true'"
           }
         ]
       }
