@@ -210,6 +210,27 @@ if (isMCPMode) {
     process.exit(0);
   });
 
+  // #2234 / ADR-0320 — parent-death watchdog. The stdin-'end' handler above
+  // closes the common case (parent dies → stdio EOF). This catches the
+  // reparent-without-EOF tail: the npm-exec shim is killed but the node server
+  // reparents to ppid=1 without EOF, and this inline MCP path has no
+  // SIGTERM/SIGINT fallback. unref'd 2s ppid poll; exits cleanly when orphaned.
+  try {
+    const { installParentDeathWatchdog } = await import('../dist/src/runtime/parent-death-watchdog.js');
+    installParentDeathWatchdog({
+      onOrphaned: () => {
+        // ADR-0240: stderr only — stdout is the JSON-RPC channel.
+        console.error(
+          `[${new Date().toISOString()}] INFO [ruflo-mcp] (${sessionId}) parent exited (ppid=1) — shutting down orphaned MCP server`
+        );
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[${new Date().toISOString()}] WARN [ruflo-mcp] (${sessionId}) parent-death watchdog unavailable: ${err?.message ?? err}`
+    );
+  }
+
   async function handleMessage(message) {
     if (!message.method) {
       return {
