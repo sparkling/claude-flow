@@ -215,6 +215,14 @@ export class WorkerDaemon extends EventEmitter {
   // Headless execution support
   private headlessExecutor: HeadlessWorkerExecutor | null = null;
   private headlessAvailable: boolean = false;
+  // #2251 (upstream 28eb57543, hand-ported) — resolves once initHeadlessExecutor()
+  // has probed `claude --version` and built the executor. The constructor kicks
+  // off init fire-and-forget (only when `--headless` is opted in); without
+  // awaiting this on the trigger path, on-demand `daemon trigger -w <worker>`
+  // runs before `headlessAvailable` is set and falls through to the local stub
+  // in ~2ms. Stays the resolved default when headless is off, so the await is a
+  // no-op there.
+  private headlessInitPromise: Promise<void> = Promise.resolve();
 
   // ADR-0181 Phase 1: per-process Memory Archivist. Each host process (cli,
   // ruflo daemon, hook-handler) constructs its OWN Archivist — not a global
@@ -350,7 +358,10 @@ export class WorkerDaemon extends EventEmitter {
     // Without this gate, workers silently spawn full claude processes (~250MB each)
     // on any machine where claude is installed, even though local fallbacks exist.
     if (this.config.headless) {
-      this.initHeadlessExecutor().catch((err) => {
+      // #2251 — capture the init promise so the on-demand trigger path can await
+      // it before checking `headlessAvailable`. Scheduled fires hit a
+      // long-running daemon and are unaffected; the `trigger` path was racing it.
+      this.headlessInitPromise = this.initHeadlessExecutor().catch((err) => {
         this.log('warn', `Headless executor init failed: ${err}`);
       });
     }
@@ -1255,6 +1266,11 @@ export class WorkerDaemon extends EventEmitter {
       return null;
     }
 
+    // #2251 — wait for the headless probe to settle before executing. Without
+    // this, on-demand `daemon trigger -w <worker>` races the constructor's
+    // fire-and-forget init and ALWAYS falls through to local mode even when
+    // `claude` is on PATH. No-op when headless is off (promise pre-resolved).
+    await this.headlessInitPromise;
     return this.executeWorker(workerConfig);
   }
 

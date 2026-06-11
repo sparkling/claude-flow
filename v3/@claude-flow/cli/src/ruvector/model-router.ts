@@ -340,9 +340,28 @@ function migratePriorState(loaded: {
 // Default Configuration
 // ============================================================================
 
+// #2250 (upstream 28eb57543, hand-ported) — env override for maxUncertainty so
+// callers can suppress/tune the escalation without recompiling. Parsed once at
+// module load; invalid / out-of-range values fall through to the default below.
+// RUFLO_ is the fork's router-env convention (cf. RUFLO_ROUTE_ACTION_UPLIFT);
+// the CLAUDE_FLOW_ name is honored as a back-compat fallback (upstream's var).
+function envMaxUncertainty(): number | undefined {
+  const raw = process.env.RUFLO_MAX_UNCERTAINTY ?? process.env.CLAUDE_FLOW_MAX_UNCERTAINTY;
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) return undefined;
+  return n;
+}
+
+// Posterior mean of a Beta(α,β) prior — used by the #2250 escalation guard to
+// detect when the bandit has *learned* the escalation target is worse.
+function priorMean(p: BetaPrior): number {
+  return p.alpha / (p.alpha + p.beta);
+}
+
 const DEFAULT_CONFIG: ModelRouterConfig = {
   confidenceThreshold: 0.85,
-  maxUncertainty: 0.15,
+  maxUncertainty: envMaxUncertainty() ?? 0.15,
   enableCircuitBreaker: true,
   circuitBreakerThreshold: 5,
   statePath: '.swarm/model-router-state.json',
@@ -645,11 +664,35 @@ export class ModelRouter {
     const scoreSpread = bestScore - secondScore;
     const uncertainty = Math.max(0, 1 - scoreSpread - confidence * 0.5);
 
-    // Escalate if uncertainty is too high
+    // Escalate if uncertainty is too high.
+    //
+    // #2250 (upstream 28eb57543, hand-ported) — `uncertainty` is structurally
+    // ~0.6-0.7 for low-complexity tasks (`1 - scoreSpread - confidence*0.5`,
+    // where `scoreSpread` rarely exceeds 0.1), so with `maxUncertainty = 0.15`
+    // the gate fired on ~every trivial route, promoting `sonnet→opus` /
+    // `haiku→sonnet` even when the Thompson sampler (ADR-0278) had already
+    // suppressed the higher tier — opus picked ~40% on trivial tasks, haiku
+    // never (the confirming signature). The learned suppression was computed
+    // and then discarded one line later.
+    //
+    // Guard: skip escalation when EITHER (a) the bandit confidently learned the
+    // escalation target performs WORSE than the selected model, OR (b) the
+    // selected model has a confident+decent posterior. Cold-start Beta(1,1)
+    // priors fail both checks, so unlearned routers escalate exactly as before.
+    // Reuses the contextual per-(taskType,model) priors sampled above.
     let model = bestModel;
     if (uncertainty > this.config.maxUncertainty && bestModel !== 'opus') {
-      // Escalate to more capable model
-      model = bestModel === 'haiku' ? 'sonnet' : 'opus';
+      const escalateTo: ClaudeModel = bestModel === 'haiku' ? 'sonnet' : 'opus';
+      const priorOf: Record<ClaudeModel, BetaPrior> = {
+        haiku: haikuP, sonnet: sonnetP, opus: opusP, inherit: { alpha: 1, beta: 1 },
+      };
+      const selectedMean = priorMean(priorOf[bestModel]);
+      const targetWorse = priorMean(priorOf[escalateTo]) < selectedMean - 0.10;
+      const selectedSamples = priorOf[bestModel].alpha + priorOf[bestModel].beta;
+      const selectedTrusted = selectedSamples >= 5 && selectedMean >= 0.45;
+      if (!targetWorse && !selectedTrusted) {
+        model = escalateTo;
+      }
     }
 
     return { model, confidence, uncertainty };
