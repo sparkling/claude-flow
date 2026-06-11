@@ -500,27 +500,31 @@ CVE remediation, input validation, path security:
 - `PasswordHasher` — bcrypt hashing
 - `TokenGenerator` — Secure token generation
 
-### Token Optimizer (Agent Booster)
-Integrates agentic-flow optimizations for 30-50% token reduction:
+### Token Optimizer
+Integrates agentic-flow optimizations for context compaction + memory reuse
+(projected 30-50% token reduction when agentic-flow/ReasoningBank is present):
 ```typescript
 import { getTokenOptimizer } from '@claude-flow/integration';
 const optimizer = await getTokenOptimizer();
 
-// Compact context (32% fewer tokens)
+// Compact context via ReasoningBank retrieval (projected ~32% fewer tokens)
 const ctx = await optimizer.getCompactContext("auth patterns");
 
-// 352x faster edits = fewer retries
+// optimizedEdit returns a TRADITIONAL edit (speedupFactor 1) unless an
+// agent-booster backend is available — the fork ships none, so it's a
+// passthrough today (ADR-0319). For real $0 deterministic structural edits,
+// use the codemod engine (var-to-const / remove-console / add-logging; ADR-0322).
 await optimizer.optimizedEdit(file, old, new, "typescript");
 
-// Optimal config (100% success rate)
+// Optimal swarm config (expected ~90-95% success rate, not guaranteed)
 const config = optimizer.getOptimalConfig(agentCount);
 ```
-| Feature | Token Savings |
+| Feature | Projected token savings |
 |---------|---------------|
-| ReasoningBank retrieval | -32% |
-| Agent Booster edits | -15% |
-| Cache (95% hit rate) | -10% |
-| Optimal batch size | -20% |
+| ReasoningBank retrieval (when agentic-flow present) | ~-32% |
+| Deterministic codemod edits ($0, ADR-0322) | fewer LLM round-trips |
+| Cache (target ~95% hit rate) | ~-10% |
+| Optimal batch size | ~-20% |
 
 ### Swarm Coordination
 `hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `collective-intelligence-coordinator`, `swarm-memory-manager`
