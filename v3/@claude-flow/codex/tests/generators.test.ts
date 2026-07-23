@@ -600,6 +600,44 @@ describe('generateBuiltInSkill', () => {
       expect(script).toContain('set -e');
     }
   });
+
+  // Regression guard for ruvnet/ruflo#2765: every local path a built-in SKILL.md
+  // renders must resolve to a file the generator actually returns. Previously the
+  // templates rendered `.agents/scripts/*.sh` (wrong dir) and a `## References`
+  // table pointing at docs that were never generated (references map was always {}).
+  it('has no dangling local paths in any built-in SKILL.md (#2765)', async () => {
+    const builtInSkills = [
+      'swarm-orchestration',
+      'memory-management',
+      'sparc-methodology',
+      'security-audit',
+      'performance-analysis',
+      'github-automation',
+    ];
+
+    for (const skillName of builtInSkills) {
+      const { skillMd, scripts, references } = await generateBuiltInSkill(skillName);
+
+      // Bug #2: script paths must be skill-relative (`scripts/x.sh`), never the
+      // legacy `.agents/scripts/x.sh` that does not match the generated layout.
+      expect(skillMd).not.toContain('.agents/scripts/');
+
+      // Every backticked `scripts/*` or `references/*` path must resolve to a
+      // key in the maps the generator returns (i.e. a file that gets written).
+      for (const [, dir, file] of skillMd.matchAll(/`(scripts|references)\/([^`]+)`/g)) {
+        const map = dir === 'scripts' ? scripts : references;
+        expect(Object.keys(map)).toContain(file);
+      }
+
+      // Bug #1: a rendered References section with no payloads is the dangling-doc
+      // bug. While references is empty, no `## References` table may be emitted,
+      // and no legacy `docs/*` links may appear.
+      if (Object.keys(references).length === 0) {
+        expect(skillMd).not.toContain('## References');
+      }
+      expect(skillMd).not.toMatch(/`docs\/[^`]+`/);
+    }
+  });
 });
 
 // =============================================================================

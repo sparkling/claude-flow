@@ -202,25 +202,13 @@ export async function generateBuiltInSkill(
       scripts: [
         {
           name: 'swarm-start',
-          path: '.agents/scripts/swarm-start.sh',
+          path: 'scripts/swarm-start.sh',
           description: 'Initialize swarm with default settings',
         },
         {
           name: 'swarm-monitor',
-          path: '.agents/scripts/swarm-monitor.sh',
+          path: 'scripts/swarm-monitor.sh',
           description: 'Real-time swarm monitoring dashboard',
-        },
-      ],
-      references: [
-        {
-          name: 'Agent Types',
-          path: 'docs/agents.md',
-          description: 'Complete list of agent types and capabilities',
-        },
-        {
-          name: 'Topology Guide',
-          path: 'docs/topology.md',
-          description: 'Swarm topology configuration guide',
         },
       ],
     },
@@ -290,25 +278,13 @@ export async function generateBuiltInSkill(
       scripts: [
         {
           name: 'memory-backup',
-          path: '.agents/scripts/memory-backup.sh',
+          path: 'scripts/memory-backup.sh',
           description: 'Backup memory to external storage',
         },
         {
           name: 'memory-consolidate',
-          path: '.agents/scripts/memory-consolidate.sh',
+          path: 'scripts/memory-consolidate.sh',
           description: 'Consolidate and optimize memory',
-        },
-      ],
-      references: [
-        {
-          name: 'HNSW Guide',
-          path: 'docs/hnsw.md',
-          description: 'HNSW vector search configuration',
-        },
-        {
-          name: 'Memory Schema',
-          path: 'docs/memory-schema.md',
-          description: 'Memory namespace and schema reference',
         },
       ],
     },
@@ -370,25 +346,13 @@ export async function generateBuiltInSkill(
       scripts: [
         {
           name: 'sparc-init',
-          path: '.agents/scripts/sparc-init.sh',
+          path: 'scripts/sparc-init.sh',
           description: 'Initialize SPARC workflow for a new feature',
         },
         {
           name: 'sparc-review',
-          path: '.agents/scripts/sparc-review.sh',
+          path: 'scripts/sparc-review.sh',
           description: 'Run SPARC phase review checklist',
-        },
-      ],
-      references: [
-        {
-          name: 'SPARC Overview',
-          path: 'docs/sparc.md',
-          description: 'Complete SPARC methodology guide',
-        },
-        {
-          name: 'Phase Templates',
-          path: 'docs/sparc-templates.md',
-          description: 'Templates for each SPARC phase',
         },
       ],
     },
@@ -465,25 +429,13 @@ export async function generateBuiltInSkill(
       scripts: [
         {
           name: 'security-scan',
-          path: '.agents/scripts/security-scan.sh',
+          path: 'scripts/security-scan.sh',
           description: 'Run full security scan pipeline',
         },
         {
           name: 'cve-remediate',
-          path: '.agents/scripts/cve-remediate.sh',
+          path: 'scripts/cve-remediate.sh',
           description: 'Auto-remediate known CVEs',
-        },
-      ],
-      references: [
-        {
-          name: 'Security Checklist',
-          path: 'docs/security-checklist.md',
-          description: 'Security review checklist',
-        },
-        {
-          name: 'OWASP Guide',
-          path: 'docs/owasp-top10.md',
-          description: 'OWASP Top 10 mitigation guide',
         },
       ],
     },
@@ -555,25 +507,13 @@ export async function generateBuiltInSkill(
       scripts: [
         {
           name: 'perf-baseline',
-          path: '.agents/scripts/perf-baseline.sh',
+          path: 'scripts/perf-baseline.sh',
           description: 'Capture performance baseline',
         },
         {
           name: 'perf-regression',
-          path: '.agents/scripts/perf-regression.sh',
+          path: 'scripts/perf-regression.sh',
           description: 'Check for performance regressions',
-        },
-      ],
-      references: [
-        {
-          name: 'Performance Guide',
-          path: 'docs/performance.md',
-          description: 'Performance optimization guide',
-        },
-        {
-          name: 'Benchmark Reference',
-          path: 'docs/benchmarks.md',
-          description: 'Benchmark configuration reference',
         },
       ],
     },
@@ -653,30 +593,13 @@ export async function generateBuiltInSkill(
       scripts: [
         {
           name: 'pr-template',
-          path: '.agents/scripts/pr-template.sh',
+          path: 'scripts/pr-template.sh',
           description: 'Generate PR from template',
         },
         {
           name: 'release-prep',
-          path: '.agents/scripts/release-prep.sh',
+          path: 'scripts/release-prep.sh',
           description: 'Prepare release with changelog',
-        },
-      ],
-      references: [
-        {
-          name: 'GitHub CLI Reference',
-          path: 'docs/gh-cli.md',
-          description: 'GitHub CLI command reference',
-        },
-        {
-          name: 'PR Guidelines',
-          path: 'docs/pr-guidelines.md',
-          description: 'Pull request best practices',
-        },
-        {
-          name: 'CI/CD Setup',
-          path: 'docs/ci-cd.md',
-          description: 'CI/CD pipeline configuration',
         },
       ],
     },
